@@ -2,28 +2,25 @@
 
 **Project:** Instructor Copilot
 
-**Current phase:** Phase 0 — Foundation
+**Current phase:** Phase 1 — Desktop Shell
 
-**Status:** READY FOR PHASE 1
+**Status:** READY FOR REVIEW
 
 **Completed:**
-- Product specification
-- Architecture baseline
-- Data model
-- MVP roadmap
-- Claude project rules
-- Phase 0 architecture corrections (structured commands, run snapshots, pause/interval timing, content roots)
-- Phase 0 data-boundary finalization (training-scoped content roots, independent Session versioning, minimal SessionRun snapshot)
+- Phase 0 docs (product spec, architecture, data model, roadmap, Claude rules)
+- Electron + React + TypeScript + Vite desktop shell (via electron-vite)
+- Secure main/preload/renderer boundary (`contextIsolation`, `sandbox`, `nodeIntegration: false`)
+- Minimal typed `contextBridge` API (`window.instructorCopilot.getAppInfo()`) over a single `app:get-info` IPC channel
+- Window-open/navigation hardening (deny new windows, block off-app navigation)
 
-**Current architecture:** Electron (main/renderer, context-isolated) + React/TypeScript renderer, JSON persistence, structured (`shell:false`) command execution against per-Training content roots.
+**Current architecture:** Electron main/renderer/preload split under `src/`, structured (`shell:false`) command execution and Training-scoped content roots remain data-model/architecture decisions only — not yet implemented.
 
 **Validation:**
-- Documentation consistency reviewed
-- Content roots are Training-scoped (no cross-Training name collisions)
-- Training, Session, AppSettings, and SessionRun each version independently
-- Historical runs snapshot minimal Session metadata, so reports survive Session edits/deletion
-- No application code
-- No dependencies installed
+- `npm run typecheck` passes
+- `npm run build` (electron-vite) passes
+- App launches in dev and from production build; renderer displays shell UI and resolved app info via preload IPC
+- Confirmed at runtime (CDP inspection): `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` — renderer has no `require`/`process`/`ipcRenderer`
+- No Training/Session/Step/business logic implemented
 - Backend Testing Mindset untouched
 
-**Next proposed phase:** Phase 1 — Desktop Shell
+**Next proposed phase:** Phase 2 — Training / Session / Step Model

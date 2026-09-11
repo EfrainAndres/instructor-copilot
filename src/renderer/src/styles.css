@@ -1,0 +1,49 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: canvas;
+  color: canvastext;
+}
+
+.shell {
+  max-width: 32rem;
+  margin: 3rem auto;
+  padding: 0 1.5rem;
+}
+
+.subtitle {
+  color: gray;
+  margin-top: -0.5rem;
+}
+
+.phase-indicator {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid currentColor;
+  border-radius: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.app-info {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.app-info dt {
+  font-weight: 600;
+}
+
+.app-info dd {
+  margin: 0;
+}
+
+.app-info-loading {
+  color: gray;
+  font-size: 0.9rem;
+}

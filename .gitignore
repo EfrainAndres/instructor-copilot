@@ -17,6 +17,7 @@ dist-electron/
 out/
 build/
 release/
+*.tsbuildinfo
 
 # Environment / secrets
 .env
