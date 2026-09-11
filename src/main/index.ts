@@ -1,12 +1,9 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-
-interface AppInfo {
-  name: string;
-  version: string;
-  platform: NodeJS.Platform;
-}
+import { IPC_CHANNELS, type AppInfo, type CreateSessionInput, type CreateTrainingInput, type IpcResult, type SaveTrainingMetadataInput } from "../shared/ipc";
+import type { Session } from "../session-engine";
+import { createSession, createTraining, getCurrentTraining, openTraining, saveSessionData, saveTrainingMetadata } from "./trainingController";
 
 function getAppInfo(): AppInfo {
   return {
@@ -14,6 +11,18 @@ function getAppInfo(): AppInfo {
     version: app.getVersion(),
     platform: process.platform
   };
+}
+
+/**
+ * Reduces a thrown domain error to a short message instead of letting it cross
+ * the IPC boundary as a rejected promise carrying a raw stack trace.
+ */
+async function toResult<T>(operation: () => Promise<T>): Promise<IpcResult<T>> {
+  try {
+    return { ok: true, value: await operation() };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 const rendererEntryUrl = process.env["ELECTRON_RENDERER_URL"];
@@ -73,7 +82,27 @@ function createMainWindow(): BrowserWindow {
 }
 
 void app.whenReady().then(() => {
-  ipcMain.handle("app:get-info", () => getAppInfo());
+  ipcMain.handle(IPC_CHANNELS.appGetInfo, () => getAppInfo());
+
+  ipcMain.handle(IPC_CHANNELS.trainingOpen, (event) =>
+    toResult(() => openTraining(BrowserWindow.fromWebContents(event.sender)))
+  );
+
+  ipcMain.handle(IPC_CHANNELS.trainingCreate, (event, input: CreateTrainingInput) =>
+    toResult(() => createTraining(BrowserWindow.fromWebContents(event.sender), input))
+  );
+
+  ipcMain.handle(IPC_CHANNELS.trainingGetCurrent, () => toResult(() => getCurrentTraining()));
+
+  ipcMain.handle(IPC_CHANNELS.trainingSaveMetadata, (_event, input: SaveTrainingMetadataInput) =>
+    toResult(() => saveTrainingMetadata(input))
+  );
+
+  ipcMain.handle(IPC_CHANNELS.sessionCreate, (_event, input: CreateSessionInput) =>
+    toResult(() => createSession(input))
+  );
+
+  ipcMain.handle(IPC_CHANNELS.sessionSave, (_event, session: Session) => toResult(() => saveSessionData(session)));
 
   createMainWindow();
 
