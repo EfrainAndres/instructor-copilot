@@ -1,0 +1,85 @@
+{
+  "id": "session-1",
+  "schemaVersion": 1,
+  "trainingId": "sample-training",
+  "title": "Sample Session 1",
+  "plannedDurationMinutes": 45,
+  "steps": [
+    {
+      "id": "welcome",
+      "type": "introduction",
+      "title": "Welcome and Objectives",
+      "objective": "Set expectations for the session.",
+      "plannedDurationMinutes": 5,
+      "facilitatorGuidance": "Introduce yourself and outline the agenda.",
+      "actions": ["Greet participants", "Share the agenda"],
+      "checklist": [{ "id": "agenda-shared", "label": "Agenda shared" }],
+      "nextStepId": "warm-up-discussion"
+    },
+    {
+      "id": "warm-up-discussion",
+      "type": "discussion",
+      "title": "Warm-up Discussion",
+      "objective": "Surface prior experience with the topic.",
+      "plannedDurationMinutes": 10,
+      "questions": ["What has worked well for you before?"],
+      "doNotReveal": ["The model answer used in the closing debrief"],
+      "nextStepId": "hands-on-demo"
+    },
+    {
+      "id": "hands-on-demo",
+      "type": "live_demo",
+      "title": "Hands-on Demo",
+      "slideRef": 4,
+      "objective": "Demonstrate the sample workflow end to end.",
+      "plannedDurationMinutes": 15,
+      "actions": ["Open the sample worksheet", "Run the reset script", "Walk through the output"],
+      "resources": [
+        {
+          "id": "sample-worksheet",
+          "kind": "file",
+          "label": "Open sample worksheet",
+          "root": "content",
+          "path": "worksheets/sample-worksheet.pdf"
+        }
+      ],
+      "command": {
+        "id": "reset-sample-env",
+        "label": "Reset sample environment",
+        "executable": "node",
+        "args": ["scripts/reset-sample-env.mjs"],
+        "root": "content",
+        "cwd": "scripts",
+        "sensitive": false
+      },
+      "evidenceStages": [
+        {
+          "id": "initial-output",
+          "label": "Initial output",
+          "order": 1,
+          "detail": "The first-pass output participants should inspect before asking questions."
+        }
+      ],
+      "nextStepId": "pair-exercise"
+    },
+    {
+      "id": "pair-exercise",
+      "type": "pair_work",
+      "title": "Pair Exercise",
+      "objective": "Apply the demoed workflow in pairs.",
+      "plannedDurationMinutes": 10,
+      "checklist": [
+        { "id": "pairs-formed", "label": "Pairs formed" },
+        { "id": "exercise-started", "label": "Exercise started" }
+      ]
+    },
+    {
+      "id": "closing-debrief",
+      "type": "closing",
+      "title": "Closing Debrief",
+      "objective": "Recap key takeaways.",
+      "plannedDurationMinutes": 5,
+      "questions": ["What will you try differently next time?"]
+    }
+  ]
+}

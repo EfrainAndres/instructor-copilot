@@ -1,0 +1,204 @@
+import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  loadSession,
+  loadTraining,
+  loadTrainingBundle,
+  saveSession,
+  saveTraining,
+  SessionEngineError,
+  type Session,
+  type Training
+} from "../index";
+
+const FIXTURE_ROOT = join(__dirname, "../../../fixtures/sample-training");
+
+let tempDir: string;
+
+beforeEach(async () => {
+  tempDir = await mkdtemp(join(tmpdir(), "instructor-copilot-test-"));
+});
+
+afterEach(async () => {
+  await rm(tempDir, { recursive: true, force: true });
+});
+
+function validTraining(overrides: Partial<Training> = {}): Training {
+  return {
+    id: "temp-training",
+    schemaVersion: 1,
+    title: "Temp Training",
+    sessionRefs: ["session-a"],
+    ...overrides
+  };
+}
+
+function validSession(overrides: Partial<Session> = {}): Session {
+  return {
+    id: "session-a",
+    schemaVersion: 1,
+    trainingId: "temp-training",
+    title: "Temp Session",
+    plannedDurationMinutes: 10,
+    steps: [
+      {
+        id: "step-1",
+        type: "introduction",
+        title: "Step One",
+        plannedDurationMinutes: 10
+      }
+    ],
+    ...overrides
+  };
+}
+
+async function writeRawSession(root: string, sessionId: string, data: unknown): Promise<void> {
+  await mkdir(join(root, "sessions"), { recursive: true });
+  await writeFile(join(root, "sessions", `${sessionId}.json`), JSON.stringify(data, null, 2));
+}
+
+async function writeRawTraining(root: string, data: unknown): Promise<void> {
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "training.json"), JSON.stringify(data, null, 2));
+}
+
+describe("sample fixture bundle", () => {
+  it("loads the valid sample Training bundle", async () => {
+    const bundle = await loadTrainingBundle(FIXTURE_ROOT);
+    expect(bundle.training.id).toBe("sample-training");
+    expect(bundle.sessions).toHaveLength(1);
+    expect(bundle.sessions[0]?.id).toBe("session-1");
+  });
+
+  it("preserves Training.sessionRefs order in the loaded sessions", async () => {
+    const bundle = await loadTrainingBundle(FIXTURE_ROOT);
+    const loadedIds = bundle.sessions.map((session) => session.id);
+    expect(loadedIds).toEqual(bundle.training.sessionRefs);
+  });
+
+  it("loads current Training and Session schema versions", async () => {
+    const training = await loadTraining(FIXTURE_ROOT);
+    const session = await loadSession(FIXTURE_ROOT, "session-1");
+    expect(training.schemaVersion).toBe(1);
+    expect(session.schemaVersion).toBe(1);
+  });
+});
+
+describe("schema version enforcement", () => {
+  it("rejects an unsupported future Training schema version", async () => {
+    await writeRawTraining(tempDir, validTraining({ schemaVersion: 999 }));
+    await expect(loadTraining(tempDir)).rejects.toThrow(SessionEngineError);
+  });
+
+  it("rejects an unsupported future Session schema version", async () => {
+    await writeRawSession(tempDir, "session-a", validSession({ schemaVersion: 999 }));
+    await expect(loadSession(tempDir, "session-a")).rejects.toThrow(SessionEngineError);
+  });
+});
+
+describe("JSON and structural validation", () => {
+  it("produces a useful failure for invalid JSON", async () => {
+    await mkdir(tempDir, { recursive: true });
+    await writeFile(join(tempDir, "training.json"), "{ not valid json");
+    await expect(loadTraining(tempDir)).rejects.toThrow(/Invalid JSON/);
+  });
+
+  it("rejects a structurally invalid Training", async () => {
+    await writeRawTraining(tempDir, { id: "temp-training", schemaVersion: 1 });
+    await expect(loadTraining(tempDir)).rejects.toThrow(SessionEngineError);
+  });
+
+  it("rejects a structurally invalid Session", async () => {
+    await writeRawSession(tempDir, "session-a", { id: "session-a", schemaVersion: 1 });
+    await expect(loadSession(tempDir, "session-a")).rejects.toThrow(SessionEngineError);
+  });
+});
+
+describe("id safety", () => {
+  it("rejects a path-traversal session id", async () => {
+    await mkdir(tempDir, { recursive: true });
+    await expect(loadSession(tempDir, "../../etc/passwd")).rejects.toThrow(SessionEngineError);
+  });
+
+  it("rejects an unsafe Training.sessionRefs entry at schema validation", async () => {
+    await writeRawTraining(tempDir, validTraining({ sessionRefs: ["../escape"] }));
+    await expect(loadTraining(tempDir)).rejects.toThrow(SessionEngineError);
+  });
+});
+
+describe("semantic validation", () => {
+  it("rejects duplicate Step ids", async () => {
+    const session = validSession({
+      steps: [
+        { id: "dup", type: "introduction", title: "A", plannedDurationMinutes: 5 },
+        { id: "dup", type: "discussion", title: "B", plannedDurationMinutes: 5 }
+      ]
+    });
+    await writeRawSession(tempDir, "session-a", session);
+    await expect(loadSession(tempDir, "session-a")).rejects.toThrow(/duplicate step id/);
+  });
+
+  it("rejects an invalid nextStepId", async () => {
+    const session = validSession({
+      steps: [
+        {
+          id: "step-1",
+          type: "introduction",
+          title: "Step One",
+          plannedDurationMinutes: 5,
+          nextStepId: "does-not-exist"
+        }
+      ]
+    });
+    await writeRawSession(tempDir, "session-a", session);
+    await expect(loadSession(tempDir, "session-a")).rejects.toThrow(/nextStepId/);
+  });
+
+  it("rejects a Session.trainingId mismatch when loading a bundle", async () => {
+    await writeRawTraining(tempDir, validTraining());
+    await writeRawSession(tempDir, "session-a", validSession({ trainingId: "other-training" }));
+    await expect(loadTrainingBundle(tempDir)).rejects.toThrow(/trainingId/);
+  });
+
+  it("rejects a Session.id/sessionRef mismatch when loading a bundle", async () => {
+    await writeRawTraining(tempDir, validTraining());
+    await writeRawSession(tempDir, "session-a", validSession({ id: "different-id" }));
+    await expect(loadTrainingBundle(tempDir)).rejects.toThrow(/declares id/);
+  });
+});
+
+describe("save + reload", () => {
+  it("round-trips Training and Session data through save and reload", async () => {
+    const training = validTraining({ description: "Round trip check" });
+    const session = validSession();
+
+    await saveTraining(tempDir, training);
+    await saveSession(tempDir, session);
+
+    const bundle = await loadTrainingBundle(tempDir);
+    expect(bundle.training).toEqual(training);
+    expect(bundle.sessions[0]).toEqual(session);
+
+    const rawTrainingText = await readFile(join(tempDir, "training.json"), "utf-8");
+    expect(rawTrainingText.endsWith("\n")).toBe(true);
+  });
+
+  it("refuses to save structurally invalid Training data", async () => {
+    const invalid = { ...validTraining(), sessionRefs: [] } as unknown as Training;
+    await expect(saveTraining(tempDir, invalid)).rejects.toThrow(SessionEngineError);
+  });
+
+  it("refuses to save structurally invalid Session data", async () => {
+    const invalid = { ...validSession(), steps: [] } as unknown as Session;
+    await expect(saveSession(tempDir, invalid)).rejects.toThrow(SessionEngineError);
+  });
+
+  it("does not mutate the checked-in sample fixture", async () => {
+    const before = await readFile(join(FIXTURE_ROOT, "training.json"), "utf-8");
+    await loadTrainingBundle(FIXTURE_ROOT);
+    const after = await readFile(join(FIXTURE_ROOT, "training.json"), "utf-8");
+    expect(after).toBe(before);
+  });
+});

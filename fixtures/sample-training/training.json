@@ -1,0 +1,7 @@
+{
+  "id": "sample-training",
+  "schemaVersion": 1,
+  "title": "Sample Training",
+  "description": "A generic fixture training used to exercise the Instructor Copilot data model. Not a real course.",
+  "sessionRefs": ["session-1"]
+}
