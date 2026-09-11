@@ -6,6 +6,7 @@ import {
   loadSession,
   loadTraining,
   loadTrainingBundle,
+  ResourceSchema,
   saveSession,
   saveTraining,
   SessionEngineError,
@@ -186,13 +187,44 @@ describe("save + reload", () => {
   });
 
   it("refuses to save structurally invalid Training data", async () => {
-    const invalid = { ...validTraining(), sessionRefs: [] } as unknown as Training;
+    const invalid = { ...validTraining(), title: "" } as unknown as Training;
     await expect(saveTraining(tempDir, invalid)).rejects.toThrow(SessionEngineError);
   });
 
   it("refuses to save structurally invalid Session data", async () => {
-    const invalid = { ...validSession(), steps: [] } as unknown as Session;
+    const invalid = { ...validSession(), title: "" } as unknown as Session;
     await expect(saveSession(tempDir, invalid)).rejects.toThrow(SessionEngineError);
+  });
+
+  it("rejects saving a Training with an unsupported schemaVersion", async () => {
+    const invalid = validTraining({ schemaVersion: 999 });
+    await expect(saveTraining(tempDir, invalid)).rejects.toThrow(SessionEngineError);
+  });
+
+  it("rejects saving a Session with an unsupported schemaVersion", async () => {
+    const invalid = validSession({ schemaVersion: 999 });
+    await expect(saveSession(tempDir, invalid)).rejects.toThrow(SessionEngineError);
+  });
+
+  it("refuses to save a Session whose trainingId does not match the Training at trainingRoot", async () => {
+    await saveTraining(tempDir, validTraining());
+    const mismatched = validSession({ trainingId: "some-other-training" });
+    await expect(saveSession(tempDir, mismatched)).rejects.toThrow(/trainingId/);
+  });
+
+  it("saves and reloads a Training with zero sessionRefs", async () => {
+    const training = validTraining({ sessionRefs: [] });
+    await saveTraining(tempDir, training);
+    const reloaded = await loadTraining(tempDir);
+    expect(reloaded.sessionRefs).toEqual([]);
+  });
+
+  it("saves and reloads a Session with zero steps", async () => {
+    await saveTraining(tempDir, validTraining());
+    const session = validSession({ steps: [] });
+    await saveSession(tempDir, session);
+    const reloaded = await loadSession(tempDir, "session-a");
+    expect(reloaded.steps).toEqual([]);
   });
 
   it("does not mutate the checked-in sample fixture", async () => {
@@ -200,5 +232,38 @@ describe("save + reload", () => {
     await loadTrainingBundle(FIXTURE_ROOT);
     const after = await readFile(join(FIXTURE_ROOT, "training.json"), "utf-8");
     expect(after).toBe(before);
+  });
+});
+
+describe("Resource root invariant", () => {
+  it("rejects a file Resource without a root", () => {
+    const result = ResourceSchema.safeParse({
+      id: "sample-worksheet",
+      kind: "file",
+      label: "Open worksheet",
+      path: "worksheets/sample.pdf"
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts an application Resource without a root", () => {
+    const result = ResourceSchema.safeParse({
+      id: "open-postman",
+      kind: "application",
+      label: "Open Postman",
+      path: "Postman"
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an application Resource with a root", () => {
+    const result = ResourceSchema.safeParse({
+      id: "open-postman",
+      kind: "application",
+      label: "Open Postman",
+      root: "content",
+      path: "Postman"
+    });
+    expect(result.success).toBe(false);
   });
 });

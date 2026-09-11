@@ -19,13 +19,21 @@ export const IdSchema = z
 
 export const ResourceKindSchema = z.enum(["file", "folder", "presentation", "application", "url"]);
 
-export const ResourceSchema = z.object({
-  id: IdSchema,
-  kind: ResourceKindSchema,
-  label: z.string().min(1),
-  root: IdSchema.optional(),
-  path: z.string().min(1)
-});
+// `root` is omitted only for kind="application" (an OS app identifier, not a content-root-relative
+// path); every other Resource kind must resolve through a named content root (see docs/data-model.md
+// -> External Resource Path Strategy).
+export const ResourceSchema = z
+  .object({
+    id: IdSchema,
+    kind: ResourceKindSchema,
+    label: z.string().min(1),
+    root: IdSchema.optional(),
+    path: z.string().min(1)
+  })
+  .refine((resource) => (resource.kind === "application" ? resource.root === undefined : resource.root !== undefined), {
+    message: 'root must be omitted when kind is "application", and is required for every other kind',
+    path: ["root"]
+  });
 
 export const CommandActionSchema = z.object({
   id: IdSchema,
@@ -89,7 +97,7 @@ export const SessionSchema = z.object({
   title: z.string().min(1),
   plannedDurationMinutes: PlannedDurationMinutesSchema,
   presentation: ResourceSchema.optional(),
-  steps: z.array(StepSchema).min(1)
+  steps: z.array(StepSchema)
 });
 
 export const TrainingSchema = z.object({
@@ -97,7 +105,7 @@ export const TrainingSchema = z.object({
   schemaVersion: z.number().int(),
   title: z.string().min(1),
   description: z.string().optional(),
-  sessionRefs: z.array(IdSchema).min(1)
+  sessionRefs: z.array(IdSchema)
 });
 
 export const TrainingRegistrationSchema = z.object({

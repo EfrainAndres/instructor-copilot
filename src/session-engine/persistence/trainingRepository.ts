@@ -65,14 +65,25 @@ export async function loadTrainingBundle(trainingRoot: string): Promise<Training
 
 export async function saveTraining(trainingRoot: string, training: Training): Promise<void> {
   const file = trainingFilePath(trainingRoot);
+  assertCurrentSchemaVersion(training, TRAINING_SCHEMA_VERSION, "Training", file);
   const validated = parseWithSchema(TrainingSchema, training, "Training", file);
   validateTrainingSemantics(validated, file);
   await writeJsonFileAtomic(file, validated);
 }
 
+/**
+ * Saving a Session also confirms it belongs to the Training already persisted at
+ * trainingRoot, so the app can never write a sessions/<id>.json whose trainingId
+ * points somewhere else. Reuses loadTraining rather than re-parsing training.json.
+ */
 export async function saveSession(trainingRoot: string, session: Session): Promise<void> {
   const file = sessionFilePath(trainingRoot, session.id);
+  assertCurrentSchemaVersion(session, SESSION_SCHEMA_VERSION, "Session", file);
   const validated = parseWithSchema(SessionSchema, session, "Session", file);
   validateSessionSemantics(validated, file);
+
+  const training = await loadTraining(trainingRoot);
+  validateSessionMatchesTraining(validated, training.id, validated.id, file);
+
   await writeJsonFileAtomic(file, validated);
 }
