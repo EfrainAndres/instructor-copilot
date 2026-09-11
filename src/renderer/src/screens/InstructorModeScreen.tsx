@@ -240,7 +240,11 @@ export function InstructorModeScreen({
           Skip
         </button>
         {derived.hasNextTarget ? (
-          <button type="button" onClick={() => handleAction(() => window.instructorCopilot.run.next())} disabled={busy}>
+          <button
+            type="button"
+            onClick={() => handleAction(() => window.instructorCopilot.run.next())}
+            disabled={busy || !derived.canGoNext}
+          >
             Next
           </button>
         ) : (
