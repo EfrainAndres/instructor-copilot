@@ -16,8 +16,8 @@ Each phase should be small enough to implement and validate in isolation. Do not
 
 ## Phase 2 — Training / Session / Step Model
 **Goal:** Implement the `session-engine` data model and JSON load/save (main process) per `data-model.md`.
-**Deliverable:** Pure TS module: types, JSON (de)serialization, schema version check, one hand-written sample Training fixture.
-**Validation:** Unit tests: load fixture, round-trip save, reject/migrate a wrong schema version.
+**Deliverable:** Pure TS module: types, JSON (de)serialization, schema version check, one hand-written sample Training fixture (with at least one Session file).
+**Validation:** Unit tests: load fixture, round-trip save, reject/migrate a wrong schema version — covering `Training` and `Session` as independently versioned/loaded files.
 **Stop condition:** Sample Training loads correctly in a Node test; no UI yet.
 
 ## Phase 3 — Session Editor

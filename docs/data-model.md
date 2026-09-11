@@ -15,6 +15,7 @@ interface Training {
 
 interface Session {
   id: Id;
+  schemaVersion: number;          // sessions/<id>.json is loaded/migrated independently of training.json
   trainingId: Id;
   title: string;
   plannedDurationMinutes: number;
@@ -89,6 +90,11 @@ interface SessionRun {
   pauseIntervals: TimeInterval[]; // session-level pauses; excluded from elapsed/drift math
   stepRuns: StepRun[];
   notes: InstructorNote[];
+
+  // Minimal authoring snapshot, captured once when the SessionRun is created.
+  // Lets Run Reports remain usable if the Session is later retitled/rescoped/deleted.
+  sessionTitleSnapshot: string;
+  plannedDurationMinutesSnapshot: number;
 }
 
 interface TimeInterval {
@@ -121,10 +127,15 @@ interface InstructorNote {
   text: string;
 }
 
+interface TrainingRegistration {
+  trainingId: Id;
+  definitionRoot: string;          // absolute path to this Training's definition directory, machine-local
+  contentRoots: Record<Id, string>; // this Training's named content root -> absolute path, machine-local (see architecture.md → Content Roots)
+}
+
 interface AppSettings {
   schemaVersion: number;
-  knownTrainingRoots: string[];   // absolute paths to imported Training directories, machine-local
-  contentRoots: Record<Id, string>; // named content root -> absolute path, machine-local (see architecture.md → Content Roots)
+  trainings: TrainingRegistration[]; // one entry per imported Training; each owns its own content-root names
   // future: theme, default confirmation behavior, etc.
 }
 ```
@@ -133,15 +144,15 @@ interface AppSettings {
 Slugs (`postman-demo`, `session-1`) for Training/Session/Step/Resource/CommandAction/EvidenceStage/ChecklistItem — authored, stable, human-readable, referenced by `nextStepId`/relations. `SessionRun`/`StepRun`/`InstructorNote` use generated (timestamp or uuid) ids since they're run-instance data, not authored content.
 
 ## Relationships
-`Training` → ordered `sessionRefs` → each `Session` owns its `steps` inline (steps are not shared across sessions, so no separate step registry). A `SessionRun` references a `Session`/`Training` by id and carries one `StepRun` per `Step` at run start. `InstructorNote` denormalizes `sessionId`/`stepId` onto itself for simple Run Report grouping without joining back through `SessionRun.stepRuns`. `Resource`/`CommandAction` reference a named content `root` (resolved via `AppSettings.contentRoots`) rather than embedding an absolute path.
+`Training` → ordered `sessionRefs` → each `Session` owns its `steps` inline (steps are not shared across sessions, so no separate step registry). A `SessionRun` references a `Session`/`Training` by id and carries one `StepRun` per `Step` at run start. `InstructorNote` denormalizes `sessionId`/`stepId` onto itself for simple Run Report grouping without joining back through `SessionRun.stepRuns`. `Resource`/`CommandAction` reference a named content `root` (resolved via the current Training's own `TrainingRegistration.contentRoots`, keyed by `trainingId`) rather than embedding an absolute path — so two different Trainings may each safely define a root named `"content"` without collision.
 
 ## Persisted vs Runtime State
 - **Authoring data** (`Training`, `Session`, `Step` and everything nested in `Step`) is persisted in the Training's own JSON files, edited via the Session Editor.
-- **Run state** (`SessionRun`, `StepRun`, `InstructorNote`) is persisted separately in `~/.instructor-copilot/runs/<runId>.json` — it must survive independently of the authored Session content evolving later, which is why each `StepRun` carries its own authoring snapshot (title/type/planned duration/order) rather than re-reading the live `Step`.
+- **Run state** (`SessionRun`, `StepRun`, `InstructorNote`) is persisted separately in `~/.instructor-copilot/runs/<runId>.json` — it must survive independently of the authored Session content evolving later, which is why `SessionRun` carries a minimal Session snapshot (title/planned duration) and each `StepRun` carries its own Step snapshot (title/type/planned duration/order) rather than re-reading the live `Session`/`Step`.
 - **Timers and drift** (session elapsed, step elapsed, schedule drift) are **not persisted as ticking state** — they're computed deterministically at any moment from `StepRun.activeIntervals` / `SessionRun.pauseIntervals` and each `StepRun`'s `plannedDurationMinutesSnapshot`. Only interval timestamps are persisted; the countdown itself is a pure function of "now." Revisiting a prior Step (Previous) opens a new interval on its existing `StepRun` rather than mutating `startedAt`, so time spent elsewhere is never counted twice; pausing the session opens an interval in `SessionRun.pauseIntervals`, which reporting subtracts from elapsed/drift math.
 
 ## Versioning / Schema Migration
-`Training`, `AppSettings`, and `SessionRun` each carry their own `schemaVersion` integer, since the three are persisted as independent files that evolve on separate timelines (editing a Training doesn't touch old run files, and vice versa). On load, main checks the version of whichever file it's reading and applies that file type's own migration function chain (`v1→v2`, `v2→v3`, …) before handing the object to the renderer — there is no shared/global schema version. `Step` does not carry its own version; it migrates as part of its owning `Session`/`Training` file. Run Reports must tolerate a `StepRun` whose `stepId` no longer exists in the current `Session` (the Step may have been edited/removed since the run) by falling back entirely to the snapshot fields — this is the normal case for historical accuracy, not an error path.
+`Training`, `Session`, `AppSettings`, and `SessionRun` are each persisted as independent files that evolve on separate timelines and each carry their own `schemaVersion` integer — editing a Training doesn't touch its Sessions' version, and neither touches old run files. On load, main checks the version of whichever file it's reading and applies that file type's own migration function chain (`v1→v2`, `v2→v3`, …) before handing the object to the renderer — there is no shared/global schema version. `Step` does not carry its own version; it migrates as part of its owning `Session` file. Run Reports must tolerate a `StepRun` whose `stepId` no longer exists in the current `Session`, or a `SessionRun` whose `Session`/`Training` has since been edited or deleted entirely, by falling back to the snapshot fields (`sessionTitleSnapshot`/`plannedDurationMinutesSnapshot` on `SessionRun`; the Step-level snapshot fields on `StepRun`) — this is the normal case for historical accuracy, not an error path.
 
 ## External Resource Path Strategy
-All `Resource.path` and `CommandAction.cwd` values are relative to a named content **root** (see `architecture.md` → Content Roots), not to an absolute path. Main resolves `root` via `AppSettings.contentRoots[root]` at open/run time; nothing in `Training`/`Session`/`Step` JSON contains an absolute, machine-specific path, which is what keeps a Training definition portable independent of where its actual content lives on a given machine. `kind: "application"` is the one `Resource` exception where `path` is an OS application identifier rather than a root-relative file, so `root` is omitted for it.
+All `Resource.path` and `CommandAction.cwd` values are relative to a named content **root** (see `architecture.md` → Content Roots), not to an absolute path. Main resolves `root` via the current Training's `TrainingRegistration.contentRoots[root]` at open/run time, so root names are scoped per-Training and never collide across Trainings; nothing in `Training`/`Session`/`Step` JSON contains an absolute, machine-specific path, which is what keeps a Training definition portable independent of where its actual content lives on a given machine. `kind: "application"` is the one `Resource` exception where `path` is an OS application identifier rather than a root-relative file, so `root` is omitted for it.
