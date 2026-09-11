@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 interface AppInfo {
   name: string;
@@ -15,6 +16,30 @@ function getAppInfo(): AppInfo {
   };
 }
 
+const rendererEntryUrl = process.env["ELECTRON_RENDERER_URL"];
+const packagedRendererFileUrl = pathToFileURL(join(__dirname, "../renderer/index.html")).href;
+
+function isTrustedNavigationTarget(url: string): boolean {
+  let target: URL;
+  try {
+    target = new URL(url);
+  } catch {
+    return false;
+  }
+
+  if (rendererEntryUrl) {
+    let trusted: URL;
+    try {
+      trusted = new URL(rendererEntryUrl);
+    } catch {
+      return false;
+    }
+    return target.origin === trusted.origin;
+  }
+
+  return target.href === packagedRendererFileUrl;
+}
+
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1000,
@@ -28,23 +53,18 @@ function createMainWindow(): BrowserWindow {
     }
   });
 
-  // Deny arbitrary new-window creation; open unexpected external targets in the OS browser instead.
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
-    return { action: "deny" };
-  });
+  // Phase 1 has no external-link launching yet; deny every renderer-created window outright.
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 
-  // Block navigation away from the app's own renderer bundle/dev server.
+  // Block top-level navigation away from the app's own renderer entry (dev server origin or packaged file).
   window.webContents.on("will-navigate", (event, url) => {
-    const isDev = !!process.env["ELECTRON_RENDERER_URL"];
-    const allowedOrigin = isDev ? process.env["ELECTRON_RENDERER_URL"] : "file://";
-    if (!allowedOrigin || !url.startsWith(allowedOrigin)) {
+    if (!isTrustedNavigationTarget(url)) {
       event.preventDefault();
     }
   });
 
-  if (process.env["ELECTRON_RENDERER_URL"]) {
-    void window.loadURL(process.env["ELECTRON_RENDERER_URL"]);
+  if (rendererEntryUrl) {
+    void window.loadURL(rendererEntryUrl);
   } else {
     void window.loadFile(join(__dirname, "../renderer/index.html"));
   }

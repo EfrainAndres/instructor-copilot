@@ -11,7 +11,7 @@
 - Electron + React + TypeScript + Vite desktop shell (via electron-vite)
 - Secure main/preload/renderer boundary (`contextIsolation`, `sandbox`, `nodeIntegration: false`)
 - Minimal typed `contextBridge` API (`window.instructorCopilot.getAppInfo()`) over a single `app:get-info` IPC channel
-- Window-open/navigation hardening (deny new windows, block off-app navigation)
+- Window-open/navigation hardening corrected: `window.open` is denied outright (no `shell.openExternal` fallback), and top-level navigation is validated with URL-aware origin/file-URL comparison instead of string-prefix matching
 
 **Current architecture:** Electron main/renderer/preload split under `src/`, structured (`shell:false`) command execution and Training-scoped content roots remain data-model/architecture decisions only — not yet implemented.
 
