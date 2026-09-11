@@ -2,26 +2,24 @@
 
 **Project:** Instructor Copilot
 
-**Current phase:** Phase 3 — Session Editor
+**Current phase:** Phase 4 — Instructor Mode + Timing + Checklists
 
-**Status:** READY FOR REVIEW
+**Status:** PHASE 4A READY FOR REVIEW
 
 **Completed:**
-- Phase 3A foundation (open/create Training, Training Detail, Session Editor, core Step CRUD/reordering, narrow typed IPC)
-- Phase 3A hardening: Create Training now refuses to overwrite a directory that already has a `training.json` (concise error, no silent overwrite); duration inputs no longer offer 0 as valid (`min` set just above zero, fractions still allowed)
-- Session Presentation association editor (`Session.presentation`, fixed `kind: "presentation"`), now also enforced at the schema level — a Session whose `presentation.kind` isn't `"presentation"` fails validation regardless of how it was authored
-- Checklist authoring (add/edit label/remove/reorder, duplicate-id guard)
-- Resource authoring — any number per Step, all kinds, enforcing the `root` invariant (auto-cleared for `"application"`, required otherwise) directly from the switch handler
-- Structured CommandAction authoring (`executable` + repeatable `args[]`, never a shell string; `root`/`cwd`/`sensitive`)
-- EvidenceStage authoring with `order` kept auto-synced to display position
-- All nested fields (checklist/resources/command/evidenceStages/presentation) round-trip through save/reload without being erased by unrelated edits
+- `SessionRun`/`StepRun`/`TimeInterval`/`InstructorNote` runtime schemas (`src/session-engine/run/schema.ts`), independently versioned (`SESSION_RUN_SCHEMA_VERSION = 1`)
+- Deterministic, pure run engine (`run/engine.ts`): create run (with Session/Step snapshots, first-Step auto-activation), Next/Previous/manual navigation, Skip, Pause/Resume, Complete, checklist toggling — all interval-based per `architecture.md` → Timing and Navigation Semantics
+- Step revisit timing verified correct: reopening a Step's interval never attributes time spent on other Steps to it
+- Pause/Resume: paused time never enters Step actual duration or session active elapsed; double-pause, resume-while-not-paused, and navigation-while-paused are all rejected with clear errors
+- Timing/drift helpers (`run/timing.ts`): Step actual duration, session wall/active elapsed, paused duration, live schedule delta (cumulative planned checkpoint), and a completed-run total schedule delta — all derived from intervals + `now`, nothing ticking is persisted
+- Run-state semantic validation (impossible states: duplicate StepRun ids, >1 active StepRun, >1 open pause interval, open Step interval while paused, backwards intervals/`completedAt`, completed run with open state)
+- Run persistence (`run/persistence.ts`): `loadSessionRun`/`saveSessionRun` against a caller-supplied app-data root, mirroring Training persistence (atomic writes, schema-version enforcement, no hardcoded path)
 
-**Current architecture:** Renderer components import runtime enums (`StepTypeSchema`, `ResourceKindSchema`) from the Node-independent `session-engine/model/schema` leaf, never the barrel — avoids pulling Node persistence code into the browser bundle (a real bundling bug hit and fixed in Phase 3A). No new IPC surface was added; `session.save(session)` remains sufficient for all nested authoring.
+**Current architecture:** `session-engine/run/` is Electron/React-independent, exported from the barrel alongside the authored model; no IPC or UI added — Phase 4B will wire `run.*` capabilities.
 
 **Validation:**
 - `npm run typecheck` passes
-- `npm test` — 30/30 passing (2 from the create-Training overwrite guard, 2 new covering the `Session.presentation` kind invariant)
-- `npm run build` passes
-- Manual validation: launched the built app and confirmed via CDP the renderer still has no `require`/`process`/`ipcRenderer`/`dialog` and the exposed API surface is unchanged. The native OS folder picker can't be driven headlessly, so it was not exercised by automation — the full nested-authoring workflow (presentation, 5 steps, checklist/resources/command/evidence on one step, reordering at every level, step deletion with `nextStepId` cleanup, command removal, save/reload) was verified by exercising the exact session-engine calls the editor's IPC layer uses, against a temporary directory (deleted after, nothing committed).
+- `npm test` — 60/60 passing (30 pre-existing + 30 new run-engine tests, all with fixed ISO timestamps, no clock/sleep dependence), including the documented worked schedule-delta example and the A→B→Previous-A interval-attribution case
+- `npm run build` passes; Phase 3 Session Editor and Electron shell relaunched and confirmed working via CDP
 
-**Next proposed phase:** Phase 4 — Instructor Mode + Timing + Checklists
+**Next proposed work:** Phase 4B — Instructor Mode UI
