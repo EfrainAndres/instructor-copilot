@@ -28,15 +28,15 @@ Each phase should be small enough to implement and validate in isolation. Do not
 
 ## Phase 4 — Instructor Mode + Timing + Checklists
 **Goal:** Live single-step runner view with deterministic timers/drift and checklist state.
-**Deliverable:** Instructor Mode screen: current step display, session/step timers, schedule drift, checklist toggling, manual next/previous.
-**Validation:** Start a run, let it progress through steps, verify timer math (session elapsed, step elapsed, drift) against manual calculation.
-**Stop condition:** A full session can be run start-to-finish with correct timing and persisted `SessionRun`/`StepRun` state.
+**Deliverable:** Instructor Mode screen: current step display, session/step timers, schedule drift, checklist toggling, Next/Previous/Skip/Pause navigation using the `activeIntervals`/`pauseIntervals` model (see `architecture.md` → Timing and Navigation Semantics).
+**Validation:** Start a run, navigate back to a prior step and forward again, pause and resume, verify timer/drift math against manual calculation and confirm revisiting a step never inflates its recorded duration.
+**Stop condition:** A full session can be run start-to-finish with correct timing and persisted `SessionRun`/`StepRun` state, including at least one Previous and one Pause/Resume.
 
 ## Phase 5 — Resources / Launcher / Command Runner
-**Goal:** Implement resource launching (`shell.openPath`) and the command runner (manual trigger, confirmation, stdout/stderr/exit code).
-**Deliverable:** "Open" buttons for Resources; "Run command" button with confirmation for sensitive commands and live output.
-**Validation:** Open a file/folder/app from a Step; run a benign test command and confirm output/exit code display; verify sensitive command requires confirmation.
-**Stop condition:** No command auto-executes; renderer cannot construct arbitrary commands (spot-check IPC boundary).
+**Goal:** Implement resource launching (`shell.openPath`) and the structured command runner (manual trigger, confirmation, stdout/stderr/exit code).
+**Deliverable:** "Open" buttons for Resources (resolved via content root); "Run command" button that spawns the authored `CommandAction` (`executable`/`args`, `shell: false`) with confirmation for sensitive commands and live output.
+**Validation:** Open a file/folder/app from a Step; run a benign test command and confirm output/exit code display; verify sensitive command requires confirmation; verify a content root pointing outside the approved path is rejected.
+**Stop condition:** No command auto-executes; renderer cannot submit a raw executable/args/path — only an authored `CommandAction`/`Resource` id (spot-check IPC boundary).
 
 ## Phase 6 — Evidence Staging
 **Goal:** Manual progressive reveal of `EvidenceStage`s during a run.
@@ -51,9 +51,9 @@ Each phase should be small enough to implement and validate in isolation. Do not
 **Stop condition:** Report renders correctly for both a clean run and one with a skipped/orphaned step.
 
 ## Phase 8 — Backend Testing Mindset Integration
-**Goal:** Author a real Instructor Copilot Training pointing at the existing Backend-Testing-Mindset-Training project (Session 1 ES first).
-**Deliverable:** A Training directory (in `examples/` or referencing the external repo per the reference-not-copy model) with Session 1 fully modeled: steps, resources (presentation, worksheets, Postman collection, C# lab paths), commands (Node helper scripts), evidence stages.
-**Validation:** Every Resource/CommandAction path resolves and opens/runs correctly against the real project, **without modifying that project**.
+**Goal:** Author a real Instructor Copilot Training definition (in this repo, e.g. `examples/backend-testing-mindset/`) pointing at the existing Backend-Testing-Mindset-Training project via a content root (Session 1 ES first).
+**Deliverable:** A portable Training definition with Session 1 fully modeled — steps, resources (presentation, worksheets, Postman collection, C# lab paths), structured commands (Node helper scripts as `executable`/`args`), evidence stages — all `Resource`/`CommandAction` entries referencing a single content root (e.g. `"content"`) mapped locally to the Backend-Testing-Mindset-Training absolute path.
+**Validation:** Every Resource/CommandAction resolves and opens/runs correctly against the real project through the configured content root, **without modifying that project** and with no absolute path present in the Training definition's own JSON.
 **Stop condition:** Session 1 ES is fully authored and loads cleanly in the Session Editor.
 
 ## Phase 9 — Real Session 1 Dry Run
