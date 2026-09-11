@@ -34,7 +34,7 @@ async function pickDirectory(
   return result.filePaths[0] ?? null;
 }
 
-function requireActiveTrainingRoot(): string {
+export function requireActiveTrainingRoot(): string {
   if (!activeTrainingRoot) {
     throw new SessionEngineError("No Training is currently open");
   }

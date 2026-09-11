@@ -4,10 +4,13 @@ import {
   type AppInfo,
   type CreateSessionInput,
   type CreateTrainingInput,
+  type InstructorRunContext,
   type IpcResult,
   type OpenOrCreateTrainingResult,
   type SaveTrainingMetadataInput,
   type Session,
+  type SetChecklistItemInput,
+  type StartRunInput,
   type TrainingBundle
 } from "../shared/ipc";
 
@@ -27,6 +30,18 @@ const instructorCopilotApi = {
       ipcRenderer.invoke(IPC_CHANNELS.sessionCreate, input),
     save: (session: Session): Promise<IpcResult<TrainingBundle>> =>
       ipcRenderer.invoke(IPC_CHANNELS.sessionSave, session)
+  },
+  run: {
+    start: (input: StartRunInput): Promise<IpcResult<InstructorRunContext>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.runStart, input),
+    next: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runNext),
+    previous: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runPrevious),
+    skip: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runSkip),
+    pause: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runPause),
+    resume: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runResume),
+    setChecklistItem: (input: SetChecklistItemInput): Promise<IpcResult<InstructorRunContext>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.runSetChecklistItem, input),
+    complete: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runComplete)
   }
 };
 

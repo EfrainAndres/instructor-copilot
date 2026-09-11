@@ -1,9 +1,28 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { IPC_CHANNELS, type AppInfo, type CreateSessionInput, type CreateTrainingInput, type IpcResult, type SaveTrainingMetadataInput } from "../shared/ipc";
+import {
+  IPC_CHANNELS,
+  type AppInfo,
+  type CreateSessionInput,
+  type CreateTrainingInput,
+  type IpcResult,
+  type SaveTrainingMetadataInput,
+  type SetChecklistItemInput,
+  type StartRunInput
+} from "../shared/ipc";
 import type { Session } from "../session-engine";
 import { createSession, createTraining, getCurrentTraining, openTraining, saveSessionData, saveTrainingMetadata } from "./trainingController";
+import {
+  complete,
+  nextStep,
+  pause,
+  previousStep,
+  resume,
+  setRunChecklistItem,
+  skipStep,
+  startRun
+} from "./runController";
 
 function getAppInfo(): AppInfo {
   return {
@@ -103,6 +122,17 @@ void app.whenReady().then(() => {
   );
 
   ipcMain.handle(IPC_CHANNELS.sessionSave, (_event, session: Session) => toResult(() => saveSessionData(session)));
+
+  ipcMain.handle(IPC_CHANNELS.runStart, (_event, input: StartRunInput) => toResult(() => startRun(input.sessionId)));
+  ipcMain.handle(IPC_CHANNELS.runNext, () => toResult(() => nextStep()));
+  ipcMain.handle(IPC_CHANNELS.runPrevious, () => toResult(() => previousStep()));
+  ipcMain.handle(IPC_CHANNELS.runSkip, () => toResult(() => skipStep()));
+  ipcMain.handle(IPC_CHANNELS.runPause, () => toResult(() => pause()));
+  ipcMain.handle(IPC_CHANNELS.runResume, () => toResult(() => resume()));
+  ipcMain.handle(IPC_CHANNELS.runSetChecklistItem, (_event, input: SetChecklistItemInput) =>
+    toResult(() => setRunChecklistItem(input.stepId, input.itemId, input.value))
+  );
+  ipcMain.handle(IPC_CHANNELS.runComplete, () => toResult(() => complete()));
 
   createMainWindow();
 

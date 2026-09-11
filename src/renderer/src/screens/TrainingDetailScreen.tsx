@@ -1,4 +1,5 @@
 import { useState, type JSX } from "react";
+import type { InstructorRunContext } from "../../../shared/ipc";
 import type { TrainingBundle } from "../../../session-engine";
 
 interface TrainingDetailScreenProps {
@@ -6,13 +7,15 @@ interface TrainingDetailScreenProps {
   onBundleUpdated: (bundle: TrainingBundle) => void;
   onOpenSession: (sessionId: string) => void;
   onBackToHome: () => void;
+  onRunStarted: (context: InstructorRunContext) => void;
 }
 
 export function TrainingDetailScreen({
   bundle,
   onBundleUpdated,
   onOpenSession,
-  onBackToHome
+  onBackToHome,
+  onRunStarted
 }: TrainingDetailScreenProps): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -80,6 +83,21 @@ export function TrainingDetailScreen({
       setSessionId("");
       setSessionTitle("");
       setSessionDuration(30);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleStartSession(sessionIdToStart: string): Promise<void> {
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await window.instructorCopilot.run.start({ sessionId: sessionIdToStart });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onRunStarted(result.value);
     } finally {
       setBusy(false);
     }
@@ -174,6 +192,9 @@ export function TrainingDetailScreen({
                 </span>
                 <button type="button" onClick={() => onOpenSession(session.id)}>
                   Edit
+                </button>
+                <button type="button" onClick={() => handleStartSession(session.id)} disabled={busy}>
+                  Start Session
                 </button>
               </li>
             );

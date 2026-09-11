@@ -4,23 +4,22 @@
 
 **Current phase:** Phase 4 — Instructor Mode + Timing + Checklists
 
-**Status:** PHASE 4A READY FOR REVIEW
+**Status:** READY FOR REVIEW
 
 **Completed:**
-- `SessionRun`/`StepRun`/`TimeInterval`/`InstructorNote` runtime schemas (`src/session-engine/run/schema.ts`), independently versioned (`SESSION_RUN_SCHEMA_VERSION = 1`)
-- Deterministic, pure run engine (`run/engine.ts`): create run (with Session/Step snapshots, first-Step auto-activation), Next/Previous/manual navigation, Skip, Pause/Resume, Complete, checklist toggling — all interval-based per `architecture.md` → Timing and Navigation Semantics
-- Step revisit timing verified correct: reopening a Step's interval never attributes time spent on other Steps to it
-- Pause/Resume: paused time never enters Step actual duration or session active elapsed; double-pause, resume-while-not-paused, and navigation-while-paused are all rejected with clear errors
-- Timing/drift helpers (`run/timing.ts`): Step actual duration, session wall/active elapsed, paused duration, live schedule delta (cumulative planned checkpoint), and a completed-run total schedule delta — all derived from intervals + `now`, nothing ticking is persisted
-- Run-state semantic validation (impossible states: duplicate StepRun ids, >1 active StepRun, >1 open pause interval, open Step interval while paused, backwards intervals/`completedAt`, completed run with open state)
-- Strengthened run-state integrity: `createSessionRun` now rejects a `trainingId` that doesn't match `Session.trainingId`; only the active StepRun may ever hold an open interval — a non-active StepRun with an open interval, more than one open interval on a single StepRun, or more than one open Step interval across the whole (unpaused) run are all rejected
-- Run persistence (`run/persistence.ts`): `loadSessionRun`/`saveSessionRun` against a caller-supplied app-data root, mirroring Training persistence (atomic writes, schema-version enforcement, no hardcoded path)
+- Phase 4A deterministic run engine (schemas, engine, timing, persistence, run-state integrity checks) — see prior entries
+- Main-owned `runController.ts`: holds the single in-memory `ActiveRunContext` (run + authored Session), generates every transition timestamp (`new Date().toISOString()`) and the run id (`run-${randomUUID()}`), persists before committing each transition (a failed `saveSessionRun` never becomes the new in-memory state), and serializes mutations against concurrent double-clicks
+- Capability-based run IPC: `run.start(sessionId)`, `run.next()`, `run.previous()`, `run.skip()`, `run.pause()`, `run.resume()`, `run.setChecklistItem(stepId, itemId, value)`, `run.complete()` — no generic transition/save channel; renderer never sends timestamps, ids, or a `SessionRun` object
+- Instructor Mode screen (`InstructorModeScreen.tsx`): live Session/Step timers and schedule drift (via a lightweight 1s display tick, no ticking state persisted), current-Step content (objective, guidance, actions, questions, do-not-reveal, checklist), read-only Resource/Command previews ("Launching available in Phase 5"), Previous/Pause-Resume/Skip/Next↔Complete controls with correct enablement, PAUSED badge, confirmed Complete, and a simple completed-run summary
+- Pure display-state derivation (`lib/instructorModeState.ts`) and a time/schedule-delta formatter (`lib/timeFormat.ts`), both unit-tested
+- App view wired: Training Detail → Start Session → Instructor Mode → (Complete) → back to Training Detail
 
-**Current architecture:** `session-engine/run/` is Electron/React-independent, exported from the barrel alongside the authored model; no IPC or UI added — Phase 4B will wire `run.*` capabilities.
+**Current architecture:** Renderer imports run-engine/timing runtime code from the Node-independent `session-engine/run/{engine,timing}.ts` leaf modules (never the barrel, which also exports Node-based persistence) — same pattern established in Phase 3B for `model/schema`.
 
 **Validation:**
 - `npm run typecheck` passes
-- `npm test` — 67/67 passing (60 pre-existing + 7 new: Training/Session ownership rejection at run creation, and the strengthened open-interval invariants), all with fixed ISO timestamps, no clock/sleep dependence
-- `npm run build` passes; Phase 3 Session Editor and Electron shell relaunched and confirmed working via CDP
+- `npm test` — 76/76 passing (67 pre-existing + 9 new: time formatter and Instructor Mode display-state derivation, including the Next-vs-Complete labeling staying stable while paused)
+- `npm run build` passes
+- Manual validation: launched the built app and confirmed via CDP no `require`/`process`/`ipcRenderer`/`dialog` in the renderer, and the exposed `run.*` capability set matches exactly what was implemented (no widened surface). The native OS folder picker used by Open/Create Training can't be driven headlessly, so the full start→checklist→next→previous(revisit)→pause→resume→skip→complete lifecycle was verified by exercising the identical session-engine calls `runController` makes, against a temporary app-data root (deleted after, nothing committed) — confirmed correct Step-revisit timing exclusion, frozen elapsed time while paused, and a persisted run JSON with all intervals closed, the pause interval closed, checklist state intact, and `completedAt` set
 
-**Next proposed work:** Phase 4B — Instructor Mode UI
+**Next proposed phase:** Phase 5 — Resources / Launcher / Command Runner

@@ -1,4 +1,4 @@
-import type { Session, TrainingBundle } from "../session-engine";
+import type { Session, SessionRun, TrainingBundle } from "../session-engine";
 
 /**
  * Channel names shared by main (ipcMain.handle) and preload (ipcRenderer.invoke) so
@@ -12,7 +12,15 @@ export const IPC_CHANNELS = {
   trainingGetCurrent: "training:get-current",
   trainingSaveMetadata: "training:save-metadata",
   sessionCreate: "session:create",
-  sessionSave: "session:save"
+  sessionSave: "session:save",
+  runStart: "run:start",
+  runNext: "run:next",
+  runPrevious: "run:previous",
+  runSkip: "run:skip",
+  runPause: "run:pause",
+  runResume: "run:resume",
+  runSetChecklistItem: "run:set-checklist-item",
+  runComplete: "run:complete"
 } as const;
 
 /**
@@ -51,4 +59,24 @@ export interface CreateSessionInput {
   plannedDurationMinutes: number;
 }
 
-export type { Session, TrainingBundle };
+export interface StartRunInput {
+  sessionId: string;
+}
+
+export interface SetChecklistItemInput {
+  stepId: string;
+  itemId: string;
+  value: boolean;
+}
+
+/**
+ * The one safe run representation the renderer ever sees: the authoritative
+ * SessionRun plus the authored Session it belongs to. No filesystem roots, no
+ * Training metadata - main owns those and never hands them across the boundary.
+ */
+export interface InstructorRunContext {
+  run: SessionRun;
+  session: Session;
+}
+
+export type { Session, SessionRun, TrainingBundle };
