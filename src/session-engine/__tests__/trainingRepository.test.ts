@@ -10,6 +10,7 @@ import {
   saveSession,
   saveTraining,
   SessionEngineError,
+  SessionSchema,
   trainingDefinitionExists,
   type Session,
   type Training
@@ -289,6 +290,36 @@ describe("Resource root invariant", () => {
       root: "content",
       path: "Postman"
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("Session.presentation kind invariant", () => {
+  it("accepts a Session whose presentation has kind \"presentation\"", () => {
+    const session = validSession({
+      presentation: {
+        id: "session-1-slides",
+        kind: "presentation",
+        label: "Session 1 Presentation",
+        root: "content",
+        path: "presentations/session-1.pptx"
+      }
+    });
+    const result = SessionSchema.safeParse(session);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a Session whose presentation has a non-\"presentation\" kind", () => {
+    const session = validSession({
+      presentation: {
+        id: "session-1-slides",
+        kind: "file",
+        label: "Session 1 Presentation",
+        root: "content",
+        path: "presentations/session-1.pptx"
+      }
+    });
+    const result = SessionSchema.safeParse(session);
     expect(result.success).toBe(false);
   });
 });

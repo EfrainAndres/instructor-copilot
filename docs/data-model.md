@@ -19,7 +19,7 @@ interface Session {
   trainingId: Id;
   title: string;
   plannedDurationMinutes: number;
-  presentation?: Resource;      // e.g. the PPTX/PDF for this session
+  presentation?: Resource;      // the PPTX/PDF for this session; kind is necessarily "presentation" (enforced at the schema level)
   steps: Step[];                 // ordered
 }
 

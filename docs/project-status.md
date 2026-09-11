@@ -9,7 +9,7 @@
 **Completed:**
 - Phase 3A foundation (open/create Training, Training Detail, Session Editor, core Step CRUD/reordering, narrow typed IPC)
 - Phase 3A hardening: Create Training now refuses to overwrite a directory that already has a `training.json` (concise error, no silent overwrite); duration inputs no longer offer 0 as valid (`min` set just above zero, fractions still allowed)
-- Session Presentation association editor (`Session.presentation`, fixed `kind: "presentation"`)
+- Session Presentation association editor (`Session.presentation`, fixed `kind: "presentation"`), now also enforced at the schema level — a Session whose `presentation.kind` isn't `"presentation"` fails validation regardless of how it was authored
 - Checklist authoring (add/edit label/remove/reorder, duplicate-id guard)
 - Resource authoring — any number per Step, all kinds, enforcing the `root` invariant (auto-cleared for `"application"`, required otherwise) directly from the switch handler
 - Structured CommandAction authoring (`executable` + repeatable `args[]`, never a shell string; `root`/`cwd`/`sensitive`)
@@ -20,7 +20,7 @@
 
 **Validation:**
 - `npm run typecheck` passes
-- `npm test` — 28/28 passing (2 new, covering the create-Training overwrite guard's `trainingDefinitionExists` helper)
+- `npm test` — 30/30 passing (2 from the create-Training overwrite guard, 2 new covering the `Session.presentation` kind invariant)
 - `npm run build` passes
 - Manual validation: launched the built app and confirmed via CDP the renderer still has no `require`/`process`/`ipcRenderer`/`dialog` and the exposed API surface is unchanged. The native OS folder picker can't be driven headlessly, so it was not exercised by automation — the full nested-authoring workflow (presentation, 5 steps, checklist/resources/command/evidence on one step, reordering at every level, step deletion with `nextStepId` cleanup, command removal, save/reload) was verified by exercising the exact session-engine calls the editor's IPC layer uses, against a temporary directory (deleted after, nothing committed).
 

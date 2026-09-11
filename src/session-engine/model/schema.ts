@@ -35,6 +35,14 @@ export const ResourceSchema = z
     path: ["root"]
   });
 
+// Session.presentation is a dedicated Resource slot: it must carry kind="presentation"
+// (the Presentation editor never shows a kind selector). Derived from ResourceSchema
+// rather than duplicated, so the root invariant above still applies.
+export const PresentationResourceSchema = ResourceSchema.refine((resource) => resource.kind === "presentation", {
+  message: 'Session.presentation must have kind "presentation"',
+  path: ["kind"]
+});
+
 export const CommandActionSchema = z.object({
   id: IdSchema,
   label: z.string().min(1),
@@ -96,7 +104,7 @@ export const SessionSchema = z.object({
   trainingId: IdSchema,
   title: z.string().min(1),
   plannedDurationMinutes: PlannedDurationMinutesSchema,
-  presentation: ResourceSchema.optional(),
+  presentation: PresentationResourceSchema.optional(),
   steps: z.array(StepSchema)
 });
 
