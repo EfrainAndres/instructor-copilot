@@ -114,6 +114,12 @@ export interface CreateSessionRunInput {
 export function createSessionRun(input: CreateSessionRunInput): SessionRun {
   assertValidTimestamp(input.startedAt, "startedAt");
 
+  if (input.trainingId !== input.session.trainingId) {
+    throw new SessionEngineError(
+      `Cannot create run: Session "${input.session.id}" belongs to Training "${input.session.trainingId}", not "${input.trainingId}"`
+    );
+  }
+
   const stepRuns: StepRun[] = input.session.steps.map((step, index) => {
     const isFirst = index === 0;
     return {

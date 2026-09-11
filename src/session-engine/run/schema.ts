@@ -106,25 +106,40 @@ export function validateSessionRunSemantics(run: SessionRun, file?: string): voi
     }
   }
 
+  // Only the logically active Step may ever be accumulating time: a pending/done/skipped
+  // StepRun must never have an open interval, no single StepRun may have more than one
+  // open interval, and at most one open Step interval may exist across the whole run.
+  let totalOpenStepIntervals = 0;
   for (const stepRun of run.stepRuns) {
+    let openIntervalsForStep = 0;
     for (const interval of stepRun.activeIntervals) {
       if (intervalIsBackwards(interval)) {
         throw new SessionEngineError(`Step "${stepRun.stepId}" has an interval ending before it starts`, file);
       }
+      if (isOpen(interval)) {
+        openIntervalsForStep += 1;
+      }
     }
-    if (isPaused && stepRun.activeIntervals.some(isOpen)) {
+    if (openIntervalsForStep > 1) {
+      throw new SessionEngineError(`Step "${stepRun.stepId}" has more than one open active interval`, file);
+    }
+    if (stepRun.status !== "active" && openIntervalsForStep > 0) {
       throw new SessionEngineError(
-        `Step "${stepRun.stepId}" has an open active interval while the run is paused`,
+        `Step "${stepRun.stepId}" has an open active interval but is not the active Step`,
         file
       );
     }
+    totalOpenStepIntervals += openIntervalsForStep;
+  }
+  if (totalOpenStepIntervals > 1) {
+    throw new SessionEngineError("SessionRun has more than one open Step active interval across all Steps", file);
   }
 
   if (run.completedAt !== undefined) {
     if (Date.parse(run.completedAt) < Date.parse(run.startedAt)) {
       throw new SessionEngineError("SessionRun.completedAt is earlier than startedAt", file);
     }
-    if (run.stepRuns.some((stepRun) => stepRun.activeIntervals.some(isOpen))) {
+    if (totalOpenStepIntervals > 0) {
       throw new SessionEngineError("Completed SessionRun has an open Step active interval", file);
     }
     if (isPaused) {
@@ -133,5 +148,28 @@ export function validateSessionRunSemantics(run: SessionRun, file?: string): voi
     if (activeStepRuns.length > 0) {
       throw new SessionEngineError("Completed SessionRun has an active StepRun", file);
     }
+  } else if (isPaused) {
+    // Paused: the active StepRun (if any) stays logically active but must have no open interval.
+    for (const stepRun of activeStepRuns) {
+      if (stepRun.activeIntervals.some(isOpen)) {
+        throw new SessionEngineError(
+          `Step "${stepRun.stepId}" has an open active interval while the run is paused`,
+          file
+        );
+      }
+    }
+  } else if (activeStepRuns.length === 1) {
+    // Unpaused, incomplete, with an active Step: it must have exactly one open interval.
+    const active = activeStepRuns[0]!;
+    if (!active.activeIntervals.some(isOpen)) {
+      throw new SessionEngineError(
+        `Step "${active.stepId}" is active but has no open active interval while the run is unpaused`,
+        file
+      );
+    }
+  } else if (totalOpenStepIntervals > 0) {
+    // Unpaused, incomplete, with no active Step (e.g. zero Steps, or skipped-without-target):
+    // no Step interval may be open.
+    throw new SessionEngineError("No Step is active, but an open Step active interval exists", file);
   }
 }

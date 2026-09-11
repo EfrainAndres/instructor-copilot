@@ -24,7 +24,7 @@ import {
   stepActualDurationMinutes,
   totalPausedMinutes
 } from "../timing";
-import type { SessionRun } from "../schema";
+import { validateSessionRunSemantics, type SessionRun } from "../schema";
 
 const T0 = "2026-09-11T10:00:00.000Z";
 const T5 = "2026-09-11T10:05:00.000Z";
@@ -131,6 +131,13 @@ describe("createSessionRun", () => {
     expect(getActiveStepRun(run)).toBeUndefined();
     const completed = completeRun(run, T5);
     expect(completed.completedAt).toBe(T5);
+  });
+
+  it("rejects a trainingId that does not match Session.trainingId", () => {
+    const session = twoStepSession(); // trainingId: "training-1"
+    expect(() =>
+      createSessionRun({ id: "run-1", trainingId: "training-2", session, startedAt: T0 })
+    ).toThrow(/belongs to Training/);
   });
 });
 
@@ -332,5 +339,67 @@ describe("persistence", () => {
       )
     };
     await expect(saveSessionRun(tempDir, corrupt)).rejects.toThrow(/more than one active/);
+  });
+});
+
+describe("run state integrity: open Step interval invariants", () => {
+  it("rejects a 'done' StepRun with an open activeInterval", () => {
+    const run = newRun(twoStepSession());
+    const corrupt: SessionRun = {
+      ...run,
+      stepRuns: run.stepRuns.map((stepRun) =>
+        stepRun.stepId === "a" ? { ...stepRun, status: "done", activeIntervals: [{ startedAt: T0 }] } : stepRun
+      )
+    };
+    expect(() => validateSessionRunSemantics(corrupt)).toThrow(/not the active Step/);
+  });
+
+  it("rejects two StepRuns with open activeIntervals even if only one has status=\"active\"", () => {
+    const run = newRun(twoStepSession());
+    const corrupt: SessionRun = {
+      ...run,
+      stepRuns: run.stepRuns.map((stepRun) =>
+        stepRun.stepId === "b" ? { ...stepRun, status: "pending", activeIntervals: [{ startedAt: T5 }] } : stepRun
+      )
+    };
+    expect(() => validateSessionRunSemantics(corrupt)).toThrow(/not the active Step/);
+  });
+
+  it("rejects an unpaused active StepRun with no open activeInterval", () => {
+    const run = newRun(twoStepSession());
+    const corrupt: SessionRun = {
+      ...run,
+      stepRuns: run.stepRuns.map((stepRun) =>
+        stepRun.stepId === "a" ? { ...stepRun, activeIntervals: [{ startedAt: T0, endedAt: T5 }] } : stepRun
+      )
+    };
+    expect(() => validateSessionRunSemantics(corrupt)).toThrow(/no open active interval while the run is unpaused/);
+  });
+
+  it("accepts a paused run whose active StepRun has its Step interval closed", () => {
+    const run = pauseRun(newRun(twoStepSession()), T5);
+    expect(() => validateSessionRunSemantics(run)).not.toThrow();
+    const a = run.stepRuns.find((stepRun) => stepRun.stepId === "a")!;
+    expect(a.status).toBe("active");
+    expect(a.activeIntervals.some((interval) => interval.endedAt === undefined)).toBe(false);
+  });
+
+  it("rejects a single StepRun with more than one open activeInterval", () => {
+    const run = newRun(twoStepSession());
+    const corrupt: SessionRun = {
+      ...run,
+      stepRuns: run.stepRuns.map((stepRun) =>
+        stepRun.stepId === "a"
+          ? { ...stepRun, activeIntervals: [{ startedAt: T0 }, { startedAt: T5 }] }
+          : stepRun
+      )
+    };
+    expect(() => validateSessionRunSemantics(corrupt)).toThrow(/more than one open active interval/);
+  });
+
+  it("allows an incomplete, unpaused run with no active Step and no open Step interval (e.g. skip without a target)", () => {
+    const run = skipCurrentStep(newRun(twoStepSession()), T5);
+    expect(getActiveStepRun(run)).toBeUndefined();
+    expect(() => validateSessionRunSemantics(run)).not.toThrow();
   });
 });
