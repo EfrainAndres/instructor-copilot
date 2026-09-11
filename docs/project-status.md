@@ -4,24 +4,24 @@
 
 **Current phase:** Phase 3 — Session Editor
 
-**Status:** PHASE 3A READY FOR REVIEW
+**Status:** READY FOR REVIEW
 
 **Completed:**
-- Open/Create Training via native directory selection (main-owned dialog; renderer never sends a filesystem path)
-- Training Detail screen: editable metadata, ordered session list, Create Session, Reload
-- Session Editor: metadata editing, full Step CRUD (add/edit/delete/reorder), dangling `nextStepId` auto-cleared on delete
-- Core Step field editor: type, title, slideRef, plannedDurationMinutes, objective, facilitatorGuidance, actions/questions/doNotReveal (repeatable string lists), nextStepId (dropdown of sibling steps)
-- Narrow typed editor IPC (`training.open/create/getCurrent/saveMetadata`, `session.create/save`) — no raw `ipcRenderer`, no arbitrary-path methods, all renderer-submitted data re-validated by session-engine
-- Validation/error handling: domain errors surfaced as concise messages, no raw stack traces
-- Unsaved-change protection in Session Editor (confirm before leaving a dirty session)
-- Nested Phase 3B-owned fields (checklist, resources, command, evidenceStages) are preserved through unrelated edits — not yet editable
+- Phase 3A foundation (open/create Training, Training Detail, Session Editor, core Step CRUD/reordering, narrow typed IPC)
+- Phase 3A hardening: Create Training now refuses to overwrite a directory that already has a `training.json` (concise error, no silent overwrite); duration inputs no longer offer 0 as valid (`min` set just above zero, fractions still allowed)
+- Session Presentation association editor (`Session.presentation`, fixed `kind: "presentation"`)
+- Checklist authoring (add/edit label/remove/reorder, duplicate-id guard)
+- Resource authoring — any number per Step, all kinds, enforcing the `root` invariant (auto-cleared for `"application"`, required otherwise) directly from the switch handler
+- Structured CommandAction authoring (`executable` + repeatable `args[]`, never a shell string; `root`/`cwd`/`sensitive`)
+- EvidenceStage authoring with `order` kept auto-synced to display position
+- All nested fields (checklist/resources/command/evidenceStages/presentation) round-trip through save/reload without being erased by unrelated edits
 
-**Current architecture:** `src/main/trainingController.ts` owns the single active Training root and all dialog/filesystem access; `src/shared/ipc.ts` defines the channel/result contract; renderer imports session-engine's leaf `model/schema` module (not the Node-dependent barrel) to reuse `StepTypeSchema` safely in the browser bundle.
+**Current architecture:** Renderer components import runtime enums (`StepTypeSchema`, `ResourceKindSchema`) from the Node-independent `session-engine/model/schema` leaf, never the barrel — avoids pulling Node persistence code into the browser bundle (a real bundling bug hit and fixed in Phase 3A). No new IPC surface was added; `session.save(session)` remains sufficient for all nested authoring.
 
 **Validation:**
 - `npm run typecheck` passes
-- `npm test` — 26/26 tests passing (all pre-existing; no regressions)
+- `npm test` — 28/28 passing (2 new, covering the create-Training overwrite guard's `trainingDefinitionExists` helper)
 - `npm run build` passes
-- Manual validation: launched the app and confirmed via CDP the renderer has no `require`/`process`/`ipcRenderer`/`dialog`, the typed `instructorCopilot` bridge exposes exactly `getAppInfo`/`training.{open,create,getCurrent,saveMetadata}`/`session.{create,save}`, and Home/Create-Training UI renders correctly. The native OS directory-picker can't be driven headlessly, so the full create→session→steps→reorder→delete→save→reload workflow was additionally verified by exercising the exact session-engine calls the IPC layer uses, against a temporary directory (deleted after, nothing committed) — order and nested-field preservation confirmed correct.
+- Manual validation: launched the built app and confirmed via CDP the renderer still has no `require`/`process`/`ipcRenderer`/`dialog` and the exposed API surface is unchanged. The native OS folder picker can't be driven headlessly, so it was not exercised by automation — the full nested-authoring workflow (presentation, 5 steps, checklist/resources/command/evidence on one step, reordering at every level, step deletion with `nextStepId` cleanup, command removal, save/reload) was verified by exercising the exact session-engine calls the editor's IPC layer uses, against a temporary directory (deleted after, nothing committed).
 
-**Next proposed work:** Phase 3B — Full Step Authoring (checklist, resource, command, evidence-stage editors)
+**Next proposed phase:** Phase 4 — Instructor Mode + Timing + Checklists

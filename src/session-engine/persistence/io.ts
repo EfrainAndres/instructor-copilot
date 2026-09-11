@@ -1,7 +1,16 @@
-import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { randomBytes } from "node:crypto";
 import { SessionEngineError } from "../validation/errors";
+
+export async function fileExists(file: string): Promise<boolean> {
+  try {
+    await access(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export async function readTextFile(file: string): Promise<string> {
   try {

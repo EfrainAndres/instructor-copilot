@@ -10,6 +10,7 @@ import {
   saveSession,
   saveTraining,
   SessionEngineError,
+  trainingDefinitionExists,
   type Session,
   type Training
 } from "../index";
@@ -84,6 +85,30 @@ describe("sample fixture bundle", () => {
     const session = await loadSession(FIXTURE_ROOT, "session-1");
     expect(training.schemaVersion).toBe(1);
     expect(session.schemaVersion).toBe(1);
+  });
+});
+
+describe("training definition existence (create-Training overwrite protection)", () => {
+  it("reports false for a directory with no training.json", async () => {
+    await mkdir(tempDir, { recursive: true });
+    expect(await trainingDefinitionExists(tempDir)).toBe(false);
+  });
+
+  it("reports true once a Training has been saved, so Create Training can refuse to overwrite it", async () => {
+    await saveTraining(tempDir, validTraining());
+    expect(await trainingDefinitionExists(tempDir)).toBe(true);
+
+    // The actual guard (main/trainingController.createTraining) checks this before ever
+    // calling saveTraining again for a freshly chosen directory; simulate that check here
+    // and confirm the original file is left untouched when it fires.
+    const before = await readFile(join(tempDir, "training.json"), "utf-8");
+    if (await trainingDefinitionExists(tempDir)) {
+      // guard fires: no write happens
+    } else {
+      await saveTraining(tempDir, validTraining({ title: "Should not be written" }));
+    }
+    const after = await readFile(join(tempDir, "training.json"), "utf-8");
+    expect(after).toBe(before);
   });
 });
 

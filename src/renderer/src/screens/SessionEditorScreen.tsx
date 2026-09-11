@@ -2,6 +2,7 @@ import { useState, type JSX } from "react";
 import { StepTypeSchema, type Session, type Step } from "../../../session-engine/model/schema";
 import type { TrainingBundle } from "../../../session-engine/persistence/trainingRepository";
 import { StepEditor } from "../components/StepEditor";
+import { PresentationEditor } from "../components/PresentationEditor";
 
 interface SessionEditorScreenProps {
   session: Session;
@@ -148,12 +149,17 @@ export function SessionEditorScreen({ session, onBundleUpdated, onBack }: Sessio
           <label>Planned duration (minutes)</label>
           <input
             type="number"
-            min={0}
+            min={0.01}
             step="any"
+            required
             value={working.plannedDurationMinutes}
             onChange={(event) => handleDurationChange(Number(event.target.value))}
           />
         </div>
+        <PresentationEditor
+          presentation={working.presentation}
+          onChange={(presentation) => mutate((draft) => ({ ...draft, presentation }))}
+        />
       </section>
 
       <section className="steps-section">
@@ -195,8 +201,9 @@ export function SessionEditorScreen({ session, onBundleUpdated, onBack }: Sessio
                 <label>Planned duration (minutes)</label>
                 <input
                   type="number"
-                  min={0}
+                  min={0.01}
                   step="any"
+                  required
                   value={newStepDuration}
                   onChange={(event) => setNewStepDuration(Number(event.target.value))}
                 />

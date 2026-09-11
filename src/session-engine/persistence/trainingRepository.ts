@@ -11,13 +11,18 @@ import {
   validateSessionSemantics,
   validateTrainingSemantics
 } from "../validation/semantic";
-import { readTextFile, writeJsonFileAtomic } from "./io";
+import { fileExists, readTextFile, writeJsonFileAtomic } from "./io";
 import { sessionFilePath, trainingFilePath } from "./paths";
 import { assertCurrentSchemaVersion, parseJson, parseWithSchema } from "./parse";
 
 export interface TrainingBundle {
   training: Training;
   sessions: Session[];
+}
+
+/** Pure/Node existence check used to protect Create Training from overwriting a directory that already has one. */
+export async function trainingDefinitionExists(trainingRoot: string): Promise<boolean> {
+  return fileExists(trainingFilePath(trainingRoot));
 }
 
 export async function loadTraining(trainingRoot: string): Promise<Training> {

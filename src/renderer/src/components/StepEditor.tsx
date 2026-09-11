@@ -1,6 +1,10 @@
 import type { JSX } from "react";
 import { StepTypeSchema, type Step } from "../../../session-engine/model/schema";
 import { StringListEditor } from "./StringListEditor";
+import { ChecklistEditor } from "./ChecklistEditor";
+import { ResourceListEditor } from "./ResourceListEditor";
+import { CommandEditor } from "./CommandEditor";
+import { EvidenceStageEditor } from "./EvidenceStageEditor";
 
 const STEP_TYPES = StepTypeSchema.options;
 
@@ -54,8 +58,9 @@ export function StepEditor({ step, otherSteps, onChange }: StepEditorProps): JSX
         <label>Planned duration (minutes)</label>
         <input
           type="number"
-          min={0}
+          min={0.01}
           step="any"
+          required
           value={step.plannedDurationMinutes}
           onChange={(event) => set("plannedDurationMinutes", Number(event.target.value))}
         />
@@ -100,6 +105,14 @@ export function StepEditor({ step, otherSteps, onChange }: StepEditorProps): JSX
           ))}
         </select>
       </div>
+
+      <ChecklistEditor items={step.checklist ?? []} onChange={(items) => set("checklist", items)} />
+      <ResourceListEditor resources={step.resources ?? []} onChange={(resources) => set("resources", resources)} />
+      <CommandEditor command={step.command} onChange={(command) => set("command", command)} />
+      <EvidenceStageEditor
+        stages={step.evidenceStages ?? []}
+        onChange={(stages) => set("evidenceStages", stages)}
+      />
     </div>
   );
 }

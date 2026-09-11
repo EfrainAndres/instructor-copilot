@@ -7,5 +7,6 @@ export {
   loadSession,
   loadTrainingBundle,
   saveTraining,
-  saveSession
+  saveSession,
+  trainingDefinitionExists
 } from "./persistence/trainingRepository";

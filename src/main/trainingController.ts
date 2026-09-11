@@ -7,6 +7,7 @@ import {
   SESSION_SCHEMA_VERSION,
   SessionEngineError,
   TRAINING_SCHEMA_VERSION,
+  trainingDefinitionExists,
   type Session,
   type Training,
   type TrainingBundle
@@ -57,6 +58,10 @@ export async function createTraining(
   const directory = await pickDirectory(window, ["openDirectory", "createDirectory"]);
   if (!directory) {
     return { canceled: true };
+  }
+
+  if (await trainingDefinitionExists(directory)) {
+    throw new SessionEngineError("This folder already contains a Training definition. Use Open Training instead.");
   }
 
   const training: Training = {

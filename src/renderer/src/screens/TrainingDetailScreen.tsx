@@ -148,8 +148,9 @@ export function TrainingDetailScreen({
               <label>Planned duration (minutes)</label>
               <input
                 type="number"
-                min={0}
+                min={0.01}
                 step="any"
+                required
                 value={sessionDuration}
                 onChange={(event) => setSessionDuration(Number(event.target.value))}
               />
