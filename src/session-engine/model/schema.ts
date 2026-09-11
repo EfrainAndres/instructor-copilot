@@ -19,9 +19,21 @@ export const IdSchema = z
 
 export const ResourceKindSchema = z.enum(["file", "folder", "presentation", "application", "url"]);
 
-// `root` is omitted only for kind="application" (an OS app identifier, not a content-root-relative
-// path); every other Resource kind must resolve through a named content root (see docs/data-model.md
-// -> External Resource Path Strategy).
+// Filesystem kinds (file/folder/presentation) resolve through a named content root
+// and require one; application/url identify a non-filesystem target (an OS app
+// identifier or a web URL) and must omit root (see docs/data-model.md -> External
+// Resource Path Strategy).
+const FILESYSTEM_RESOURCE_KINDS = new Set(["file", "folder", "presentation"]);
+
+function isAbsoluteHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export const ResourceSchema = z
   .object({
     id: IdSchema,
@@ -30,9 +42,13 @@ export const ResourceSchema = z
     root: IdSchema.optional(),
     path: z.string().min(1)
   })
-  .refine((resource) => (resource.kind === "application" ? resource.root === undefined : resource.root !== undefined), {
-    message: 'root must be omitted when kind is "application", and is required for every other kind',
+  .refine((resource) => FILESYSTEM_RESOURCE_KINDS.has(resource.kind) === (resource.root !== undefined), {
+    message: 'root is required for kind "file"/"folder"/"presentation", and must be omitted for "application"/"url"',
     path: ["root"]
+  })
+  .refine((resource) => resource.kind !== "url" || isAbsoluteHttpUrl(resource.path), {
+    message: 'a "url" Resource path must be an absolute http or https URL',
+    path: ["path"]
   });
 
 // Session.presentation is a dedicated Resource slot: it must carry kind="presentation"

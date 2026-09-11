@@ -20,7 +20,12 @@ export const IPC_CHANNELS = {
   runPause: "run:pause",
   runResume: "run:resume",
   runSetChecklistItem: "run:set-checklist-item",
-  runComplete: "run:complete"
+  runComplete: "run:complete",
+  trainingGetContentRootStatus: "training:get-content-root-status",
+  trainingConfigureContentRoot: "training:configure-content-root",
+  trainingClearContentRoot: "training:clear-content-root",
+  resourceOpenPresentation: "resource:open-presentation",
+  resourceOpenCurrentStep: "resource:open-current-step-resource"
 } as const;
 
 /**
@@ -77,6 +82,32 @@ export interface SetChecklistItemInput {
 export interface InstructorRunContext {
   run: SessionRun;
   session: Session;
+}
+
+/**
+ * The renderer only ever learns whether a logical content root is configured for
+ * the current Training - never the absolute machine path behind it.
+ */
+export interface ContentRootStatus {
+  id: string;
+  configured: boolean;
+}
+
+export interface ConfigureContentRootInput {
+  rootId: string;
+}
+
+export interface ClearContentRootInput {
+  rootId: string;
+}
+
+export interface ConfigureContentRootResult {
+  canceled: boolean;
+  status?: ContentRootStatus[];
+}
+
+export interface OpenCurrentStepResourceInput {
+  resourceId: string;
 }
 
 export type { Session, SessionRun, TrainingBundle };

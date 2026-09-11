@@ -1,5 +1,5 @@
-import { useState, type JSX } from "react";
-import type { InstructorRunContext } from "../../../shared/ipc";
+import { useEffect, useState, type JSX } from "react";
+import type { ContentRootStatus, InstructorRunContext } from "../../../shared/ipc";
 import type { TrainingBundle } from "../../../session-engine";
 
 interface TrainingDetailScreenProps {
@@ -27,6 +27,20 @@ export function TrainingDetailScreen({
   const [sessionId, setSessionId] = useState("");
   const [sessionTitle, setSessionTitle] = useState("");
   const [sessionDuration, setSessionDuration] = useState(30);
+
+  const [contentRoots, setContentRoots] = useState<ContentRootStatus[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.instructorCopilot.training.getContentRootStatus().then((result) => {
+      if (!cancelled && result.ok) {
+        setContentRoots(result.value);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bundle]);
 
   async function handleReload(): Promise<void> {
     setError(null);
@@ -103,6 +117,38 @@ export function TrainingDetailScreen({
     }
   }
 
+  async function handleConfigureContentRoot(rootId: string): Promise<void> {
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await window.instructorCopilot.training.configureContentRoot({ rootId });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      if (!result.value.canceled && result.value.status) {
+        setContentRoots(result.value.status);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClearContentRoot(rootId: string): Promise<void> {
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await window.instructorCopilot.training.clearContentRoot({ rootId });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setContentRoots(result.value);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const sessionsById = new Map(bundle.sessions.map((session) => [session.id, session]));
 
   return (
@@ -131,6 +177,32 @@ export function TrainingDetailScreen({
         <button type="button" onClick={handleSaveMetadata} disabled={busy || !title.trim()}>
           Save Training
         </button>
+      </section>
+
+      <section className="content-roots-section">
+        <h2>Content Roots</h2>
+        {contentRoots.length === 0 ? (
+          <p className="empty-state">No filesystem-rooted Resources are referenced by this Training's Sessions.</p>
+        ) : (
+          <ul className="content-root-list">
+            {contentRoots.map((rootStatus) => (
+              <li key={rootStatus.id} className="content-root-item">
+                <span className="content-root-id">{rootStatus.id}</span>
+                <span className={rootStatus.configured ? "content-root-status configured" : "content-root-status"}>
+                  {rootStatus.configured ? "Configured" : "Not configured"}
+                </span>
+                <button type="button" onClick={() => handleConfigureContentRoot(rootStatus.id)} disabled={busy}>
+                  {rootStatus.configured ? "Change" : "Configure"}
+                </button>
+                {rootStatus.configured && (
+                  <button type="button" onClick={() => handleClearContentRoot(rootStatus.id)} disabled={busy}>
+                    Clear
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="sessions-section">

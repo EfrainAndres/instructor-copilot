@@ -292,6 +292,50 @@ describe("Resource root invariant", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts a url Resource with an https path and no root", () => {
+    const result = ResourceSchema.safeParse({
+      id: "open-docs",
+      kind: "url",
+      label: "Open Docs",
+      path: "https://example.com/docs"
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a url Resource that has a root", () => {
+    const result = ResourceSchema.safeParse({
+      id: "open-docs",
+      kind: "url",
+      label: "Open Docs",
+      root: "content",
+      path: "https://example.com/docs"
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it.each(["javascript:alert(1)", "file:///etc/passwd", "docs/readme.md", "ftp://example.com/file"])(
+    "rejects a url Resource whose path is not an absolute http(s) URL: %s",
+    (path) => {
+      const result = ResourceSchema.safeParse({
+        id: "open-docs",
+        kind: "url",
+        label: "Open Docs",
+        path
+      });
+      expect(result.success).toBe(false);
+    }
+  );
+
+  it("rejects a folder Resource without a root", () => {
+    const result = ResourceSchema.safeParse({
+      id: "open-assets",
+      kind: "folder",
+      label: "Open Assets",
+      path: "assets"
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("Session.presentation kind invariant", () => {

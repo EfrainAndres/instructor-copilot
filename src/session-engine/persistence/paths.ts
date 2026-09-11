@@ -6,6 +6,10 @@ export function trainingFilePath(trainingRoot: string): string {
   return join(trainingRoot, "training.json");
 }
 
+export function appSettingsFilePath(appDataRoot: string): string {
+  return join(appDataRoot, "settings.json");
+}
+
 /**
  * Resolves sessions/<sessionId>.json under trainingRoot. sessionId is re-validated
  * here (not just trusted from a prior schema check) because this is the one place

@@ -2,10 +2,15 @@ import { contextBridge, ipcRenderer } from "electron";
 import {
   IPC_CHANNELS,
   type AppInfo,
+  type ClearContentRootInput,
+  type ConfigureContentRootInput,
+  type ConfigureContentRootResult,
+  type ContentRootStatus,
   type CreateSessionInput,
   type CreateTrainingInput,
   type InstructorRunContext,
   type IpcResult,
+  type OpenCurrentStepResourceInput,
   type OpenOrCreateTrainingResult,
   type SaveTrainingMetadataInput,
   type Session,
@@ -23,7 +28,13 @@ const instructorCopilotApi = {
     getCurrent: (): Promise<IpcResult<TrainingBundle | null>> =>
       ipcRenderer.invoke(IPC_CHANNELS.trainingGetCurrent),
     saveMetadata: (input: SaveTrainingMetadataInput): Promise<IpcResult<TrainingBundle>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.trainingSaveMetadata, input)
+      ipcRenderer.invoke(IPC_CHANNELS.trainingSaveMetadata, input),
+    getContentRootStatus: (): Promise<IpcResult<ContentRootStatus[]>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.trainingGetContentRootStatus),
+    configureContentRoot: (input: ConfigureContentRootInput): Promise<IpcResult<ConfigureContentRootResult>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.trainingConfigureContentRoot, input),
+    clearContentRoot: (input: ClearContentRootInput): Promise<IpcResult<ContentRootStatus[]>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.trainingClearContentRoot, input)
   },
   session: {
     create: (input: CreateSessionInput): Promise<IpcResult<TrainingBundle>> =>
@@ -42,6 +53,11 @@ const instructorCopilotApi = {
     setChecklistItem: (input: SetChecklistItemInput): Promise<IpcResult<InstructorRunContext>> =>
       ipcRenderer.invoke(IPC_CHANNELS.runSetChecklistItem, input),
     complete: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runComplete)
+  },
+  resource: {
+    openPresentation: (): Promise<IpcResult<null>> => ipcRenderer.invoke(IPC_CHANNELS.resourceOpenPresentation),
+    openCurrentStepResource: (input: OpenCurrentStepResourceInput): Promise<IpcResult<null>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.resourceOpenCurrentStep, input)
   }
 };
 

@@ -8,11 +8,13 @@ interface ResourceListEditorProps {
   onChange: (resources: Resource[]) => void;
 }
 
+const NON_FILESYSTEM_KINDS = new Set<ResourceKind>(["application", "url"]);
+
 function withKindInvariant(resource: Resource, kind: ResourceKind): Resource {
-  // Following the canonical Resource invariant: root must be omitted for "application"
-  // and is otherwise required. Switching kind adjusts root accordingly rather than
-  // leaving it in a state Save would reject.
-  if (kind === "application") {
+  // Following the canonical Resource invariant: root must be omitted for
+  // "application"/"url" and is otherwise required. Switching kind adjusts root
+  // accordingly rather than leaving it in a state Save would reject.
+  if (NON_FILESYSTEM_KINDS.has(kind)) {
     const { root: _root, ...withoutRoot } = resource;
     return { ...withoutRoot, kind };
   }
@@ -45,7 +47,7 @@ function ResourceFields({
         <label>Label</label>
         <input type="text" value={resource.label} onChange={(event) => onChange({ ...resource, label: event.target.value })} />
       </div>
-      {resource.kind !== "application" && (
+      {!NON_FILESYSTEM_KINDS.has(resource.kind) && (
         <div className="field">
           <label>Content root</label>
           <input
@@ -57,7 +59,7 @@ function ResourceFields({
         </div>
       )}
       <div className="field">
-        <label>Path</label>
+        <label>Path{resource.kind === "url" ? " (absolute http/https URL)" : ""}</label>
         <input type="text" value={resource.path} onChange={(event) => onChange({ ...resource, path: event.target.value })} />
       </div>
     </div>

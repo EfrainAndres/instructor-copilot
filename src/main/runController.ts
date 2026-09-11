@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import {
   activateStep,
   completeRun,
@@ -19,6 +17,7 @@ import {
   type SessionRun
 } from "../session-engine";
 import type { InstructorRunContext } from "../shared/ipc";
+import { getAppDataRoot } from "./appData";
 import { requireActiveTrainingRoot } from "./trainingController";
 
 interface ActiveRunContext {
@@ -36,10 +35,6 @@ let active: ActiveRunContext | null = null;
 // Serializes run mutations so two rapid clicks (e.g. a double-click) can never
 // race two concurrent writes to the same run file.
 let mutationInFlight = false;
-
-function getAppDataRoot(): string {
-  return join(homedir(), ".instructor-copilot");
-}
 
 function toPublicContext(context: ActiveRunContext): InstructorRunContext {
   return { run: context.run, session: context.session };
@@ -162,4 +157,13 @@ export async function complete(): Promise<InstructorRunContext> {
 
 export async function setRunChecklistItem(stepId: string, itemId: string, value: boolean): Promise<InstructorRunContext> {
   return mutate((run, session) => setChecklistItem(run, session, stepId, itemId, value));
+}
+
+/** Main-internal accessors for resourceController - never exposed to the renderer. */
+export function requireActiveSession(): Session {
+  return requireActive().session;
+}
+
+export function getCurrentActiveStepId(): string | undefined {
+  return active ? getActiveStepId(active.run) : undefined;
 }

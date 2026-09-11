@@ -2,24 +2,26 @@
 
 **Project:** Instructor Copilot
 
-**Current phase:** Phase 4 — Instructor Mode + Timing + Checklists
+**Current phase:** Phase 5 — Resources / Launcher / Command Runner
 
-**Status:** READY FOR REVIEW
+**Status:** PHASE 5A READY FOR REVIEW
 
 **Completed:**
-- Phase 4A deterministic run engine (schemas, engine, timing, persistence, run-state integrity checks) — see prior entries
-- Main-owned `runController.ts`: holds the single in-memory `ActiveRunContext` (run + authored Session), generates every transition timestamp (`new Date().toISOString()`) and the run id (`run-${randomUUID()}`), persists before committing each transition (a failed `saveSessionRun` never becomes the new in-memory state), and serializes mutations against concurrent double-clicks
-- Capability-based run IPC: `run.start(sessionId)`, `run.next()`, `run.previous()`, `run.skip()`, `run.pause()`, `run.resume()`, `run.setChecklistItem(stepId, itemId, value)`, `run.complete()` — no generic transition/save channel; the renderer sends only narrow capability-specific ids/booleans (e.g. `sessionId`, `stepId`, `itemId`) and never provides transition timestamps, generated run ids, filesystem paths, or an authoritative `SessionRun` object
-- Instructor Mode screen (`InstructorModeScreen.tsx`): live Session/Step timers and schedule drift (via a lightweight 1s display tick, no ticking state persisted), current-Step content (objective, guidance, actions, questions, do-not-reveal, checklist), read-only Resource/Command previews ("Launching available in Phase 5"), Previous/Pause-Resume/Skip/Next↔Complete controls with correct enablement, PAUSED badge, confirmed Complete, and a simple completed-run summary
-- Pure display-state derivation (`lib/instructorModeState.ts`) and a time/schedule-delta formatter (`lib/timeFormat.ts`), both unit-tested
-- App view wired: Training Detail → Start Session → Instructor Mode → (Complete) → back to Training Detail
+- AppSettings persistence (`~/.instructor-copilot/settings.json`): `loadAppSettings`/`saveAppSettings`/`loadOrCreateAppSettings`, schema-version enforcement, unique-`trainingId` validation, atomic writes; a missing file returns a valid empty settings object without ever being silently created/overwritten on read
+- Per-Training registration: Open/Create Training now upserts a `TrainingRegistration` (definitionRoot + contentRoots), refreshing `definitionRoot` while preserving existing content roots
+- Content-root configuration: `training.getContentRootStatus()` (derived from the Training's referenced Resources/Command, via the pure `collectRequiredContentRootIds` helper), `training.configureContentRoot(rootId)` (native picker in main, renderer sends only the root name), `training.clearContentRoot(rootId)` — absolute paths never cross into the renderer
+- **Resource model correction:** `file`/`folder`/`presentation` now require `root`; `application`/`url` must omit it; `url` must be an absolute `http`/`https` URL (validated via `URL` parsing, not `startsWith`)
+- Secure path containment (`resolveWithinRoot`): relative-path based (not string-prefix), rejects `../` escapes, sibling-prefix escapes, and absolute-path inputs
+- Main-owned resource launcher (`resourceController.ts`): `resource.openPresentation()` and `resource.openCurrentStepResource(resourceId)` — id-only from the renderer; main resolves the exact authored Resource from the active run's Session, resolves filesystem kinds through the configured content root, opens via `shell.openPath`/`shell.openExternal` only (no `child_process`, no shell string execution)
+- Instructor Mode: real "Open" buttons for current-Step Resources and a standing "Open Presentation" button; launch failures surface in the existing error banner without mutating `SessionRun` state
+- Training Detail: new "Content Roots" section listing required roots with Configure/Change/Clear
 
-**Current architecture:** Renderer imports run-engine/timing runtime code from the Node-independent `session-engine/run/{engine,timing}.ts` leaf modules (never the barrel, which also exports Node-based persistence) — same pattern established in Phase 3B for `model/schema`.
+**Current architecture:** `getAppDataRoot()` extracted to `src/main/appData.ts`, shared by run persistence and settings persistence. No command execution exists yet (`CommandAction` remains read-only, per the roadmap's Phase 5B split).
 
 **Validation:**
 - `npm run typecheck` passes
-- `npm test` — 76/76 passing (67 pre-existing + 9 new: time formatter and Instructor Mode display-state derivation, including the Next-vs-Complete labeling staying stable while paused)
+- `npm test` — 99/99 passing (76 pre-existing + 23 new: AppSettings persistence/semantics, registration upsert/content-root pure logic, content-root discovery, path-containment resolver including the sibling-prefix and absolute-path escape cases, and the corrected Resource kind/URL invariants)
 - `npm run build` passes
-- Manual validation: launched the built app and confirmed via CDP no `require`/`process`/`ipcRenderer`/`dialog` in the renderer, and the exposed `run.*` capability set matches exactly what was implemented (no widened surface). The native OS folder picker used by Open/Create Training can't be driven headlessly, so the full start→checklist→next→previous(revisit)→pause→resume→skip→complete lifecycle was verified by exercising the identical session-engine calls `runController` makes, against a temporary app-data root (deleted after, nothing committed) — confirmed correct Step-revisit timing exclusion, frozen elapsed time while paused, and a persisted run JSON with all intervals closed, the pause interval closed, checklist state intact, and `completedAt` set
+- Manual validation: launched the built app and confirmed via CDP the renderer still has no `require`/`process`/`ipcRenderer`/`dialog`, the new `training.*`/`resource.*` capability shapes match exactly what was implemented, and a content-root lookup with no Training open fails with a clear message. The native OS folder picker can't be driven headlessly, so registration → content-root configure/clear → path resolution (including a `../` escape attempt and the "not configured" failure) was verified by exercising the identical session-engine calls `trainingController`/`resourceController` make, against temporary directories (deleted after, nothing committed) — `shell.openPath`/`shell.openExternal` themselves were not invoked outside Electron, but everything up to that call boundary was proven correct
 
-**Next proposed phase:** Phase 5 — Resources / Launcher / Command Runner
+**Next proposed phase:** Phase 5B — Structured Command Runner

@@ -4,15 +4,28 @@ import { pathToFileURL } from "node:url";
 import {
   IPC_CHANNELS,
   type AppInfo,
+  type ClearContentRootInput,
+  type ConfigureContentRootInput,
   type CreateSessionInput,
   type CreateTrainingInput,
   type IpcResult,
+  type OpenCurrentStepResourceInput,
   type SaveTrainingMetadataInput,
   type SetChecklistItemInput,
   type StartRunInput
 } from "../shared/ipc";
 import type { Session } from "../session-engine";
-import { createSession, createTraining, getCurrentTraining, openTraining, saveSessionData, saveTrainingMetadata } from "./trainingController";
+import {
+  clearContentRootForActiveTraining,
+  configureContentRoot,
+  createSession,
+  createTraining,
+  getContentRootStatus,
+  getCurrentTraining,
+  openTraining,
+  saveSessionData,
+  saveTrainingMetadata
+} from "./trainingController";
 import {
   complete,
   nextStep,
@@ -23,6 +36,7 @@ import {
   skipStep,
   startRun
 } from "./runController";
+import { openCurrentStepResource, openPresentation } from "./resourceController";
 
 function getAppInfo(): AppInfo {
   return {
@@ -133,6 +147,19 @@ void app.whenReady().then(() => {
     toResult(() => setRunChecklistItem(input.stepId, input.itemId, input.value))
   );
   ipcMain.handle(IPC_CHANNELS.runComplete, () => toResult(() => complete()));
+
+  ipcMain.handle(IPC_CHANNELS.trainingGetContentRootStatus, () => toResult(() => getContentRootStatus()));
+  ipcMain.handle(IPC_CHANNELS.trainingConfigureContentRoot, (event, input: ConfigureContentRootInput) =>
+    toResult(() => configureContentRoot(BrowserWindow.fromWebContents(event.sender), input.rootId))
+  );
+  ipcMain.handle(IPC_CHANNELS.trainingClearContentRoot, (_event, input: ClearContentRootInput) =>
+    toResult(() => clearContentRootForActiveTraining(input.rootId))
+  );
+
+  ipcMain.handle(IPC_CHANNELS.resourceOpenPresentation, () => toResult(() => openPresentation()));
+  ipcMain.handle(IPC_CHANNELS.resourceOpenCurrentStep, (_event, input: OpenCurrentStepResourceInput) =>
+    toResult(() => openCurrentStepResource(input.resourceId))
+  );
 
   createMainWindow();
 

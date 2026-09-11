@@ -15,3 +15,14 @@ export * from "./run/schema";
 export * from "./run/engine";
 export * from "./run/timing";
 export { loadSessionRun, saveSessionRun } from "./run/persistence";
+
+export { collectRequiredContentRootIds } from "./model/contentRoots";
+export { resolveWithinRoot } from "./resources/pathContainment";
+export {
+  loadAppSettings,
+  loadOrCreateAppSettings,
+  saveAppSettings,
+  upsertTrainingRegistration,
+  setContentRoot,
+  clearContentRoot
+} from "./persistence/appSettingsRepository";

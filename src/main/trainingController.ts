@@ -1,18 +1,32 @@
 import { dialog, type BrowserWindow } from "electron";
 import {
+  clearContentRoot,
+  collectRequiredContentRootIds,
+  loadOrCreateAppSettings,
   loadTraining,
   loadTrainingBundle,
+  saveAppSettings,
   saveSession,
   saveTraining,
   SESSION_SCHEMA_VERSION,
   SessionEngineError,
+  setContentRoot,
   TRAINING_SCHEMA_VERSION,
   trainingDefinitionExists,
+  upsertTrainingRegistration,
   type Session,
   type Training,
   type TrainingBundle
 } from "../session-engine";
-import type { CreateSessionInput, CreateTrainingInput, OpenOrCreateTrainingResult, SaveTrainingMetadataInput } from "../shared/ipc";
+import type {
+  ContentRootStatus,
+  ConfigureContentRootResult,
+  CreateSessionInput,
+  CreateTrainingInput,
+  OpenOrCreateTrainingResult,
+  SaveTrainingMetadataInput
+} from "../shared/ipc";
+import { getAppDataRoot } from "./appData";
 
 /**
  * Phase 3A keeps a single active Training root owned by main. The renderer never
@@ -41,12 +55,25 @@ export function requireActiveTrainingRoot(): string {
   return activeTrainingRoot;
 }
 
+/**
+ * Registers (or refreshes) this Training's machine-local definitionRoot in
+ * AppSettings. Only called after the Training itself has been successfully
+ * opened/created; refreshing preserves any content roots already configured.
+ */
+async function registerActiveTraining(trainingId: string, definitionRoot: string): Promise<void> {
+  const appDataRoot = getAppDataRoot();
+  const settings = await loadOrCreateAppSettings(appDataRoot);
+  const updated = upsertTrainingRegistration(settings, trainingId, definitionRoot);
+  await saveAppSettings(appDataRoot, updated);
+}
+
 export async function openTraining(window: BrowserWindow | null): Promise<OpenOrCreateTrainingResult> {
   const directory = await pickDirectory(window, ["openDirectory"]);
   if (!directory) {
     return { canceled: true };
   }
   const bundle = await loadTrainingBundle(directory);
+  await registerActiveTraining(bundle.training.id, directory);
   activeTrainingRoot = directory;
   return { canceled: false, bundle };
 }
@@ -73,6 +100,7 @@ export async function createTraining(
   };
 
   await saveTraining(directory, training);
+  await registerActiveTraining(training.id, directory);
   activeTrainingRoot = directory;
   return { canceled: false, bundle: { training, sessions: [] } };
 }
@@ -127,4 +155,70 @@ export async function saveSessionData(session: Session): Promise<TrainingBundle>
   const root = requireActiveTrainingRoot();
   await saveSession(root, session);
   return loadTrainingBundle(root);
+}
+
+export async function getContentRootStatus(): Promise<ContentRootStatus[]> {
+  const root = requireActiveTrainingRoot();
+  const bundle = await loadTrainingBundle(root);
+  const requiredIds = collectRequiredContentRootIds(bundle.sessions);
+
+  const settings = await loadOrCreateAppSettings(getAppDataRoot());
+  const registration = settings.trainings.find((candidate) => candidate.trainingId === bundle.training.id);
+  const configuredIds = new Set(registration ? Object.keys(registration.contentRoots) : []);
+
+  return requiredIds.map((id) => ({ id, configured: configuredIds.has(id) }));
+}
+
+export async function configureContentRoot(
+  window: BrowserWindow | null,
+  rootId: string
+): Promise<ConfigureContentRootResult> {
+  const root = requireActiveTrainingRoot();
+  const training = await loadTraining(root);
+
+  const directory = await pickDirectory(window, ["openDirectory", "createDirectory"]);
+  if (!directory) {
+    return { canceled: true };
+  }
+
+  const appDataRoot = getAppDataRoot();
+  const settings = await loadOrCreateAppSettings(appDataRoot);
+  const updated = setContentRoot(settings, training.id, rootId, directory);
+  await saveAppSettings(appDataRoot, updated);
+
+  return { canceled: false, status: await getContentRootStatus() };
+}
+
+export async function clearContentRootForActiveTraining(rootId: string): Promise<ContentRootStatus[]> {
+  const root = requireActiveTrainingRoot();
+  const training = await loadTraining(root);
+
+  const appDataRoot = getAppDataRoot();
+  const settings = await loadOrCreateAppSettings(appDataRoot);
+  const updated = clearContentRoot(settings, training.id, rootId);
+  await saveAppSettings(appDataRoot, updated);
+
+  return getContentRootStatus();
+}
+
+/**
+ * Resolves a logical content-root id to its configured absolute path for the
+ * currently active Training. Used only by resourceController - the absolute
+ * path itself never leaves main.
+ */
+export async function resolveContentRootPath(rootId: string): Promise<string> {
+  const root = requireActiveTrainingRoot();
+  const training = await loadTraining(root);
+
+  const settings = await loadOrCreateAppSettings(getAppDataRoot());
+  const registration = settings.trainings.find((candidate) => candidate.trainingId === training.id);
+  const absolutePath = registration?.contentRoots[rootId];
+
+  if (!absolutePath) {
+    throw new SessionEngineError(
+      `Content root "${rootId}" is not configured for this Training. Configure it from Training Detail.`
+    );
+  }
+
+  return absolutePath;
 }

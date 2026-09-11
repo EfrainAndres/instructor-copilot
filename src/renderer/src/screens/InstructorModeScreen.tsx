@@ -61,6 +61,28 @@ export function InstructorModeScreen({
     );
   }
 
+  /** Launch actions never mutate SessionRun state - only the error banner reacts. */
+  async function handleResourceAction(action: () => Promise<IpcResult<null>>): Promise<void> {
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await action();
+      if (!result.ok) {
+        setError(result.error);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleOpenPresentation(): void {
+    void handleResourceAction(() => window.instructorCopilot.resource.openPresentation());
+  }
+
+  function handleOpenResource(resourceId: string): void {
+    void handleResourceAction(() => window.instructorCopilot.resource.openCurrentStepResource({ resourceId }));
+  }
+
   if (derived.completed) {
     return (
       <main className="screen instructor-mode-completed">
@@ -116,6 +138,12 @@ export function InstructorModeScreen({
       </header>
 
       {error && <p className="error-banner">{error}</p>}
+
+      {context.session.presentation && (
+        <button type="button" className="im-open-presentation" onClick={handleOpenPresentation} disabled={busy}>
+          Open Presentation
+        </button>
+      )}
 
       {derived.currentStep ? (
         <section className="im-step-content">
@@ -195,10 +223,15 @@ export function InstructorModeScreen({
           {derived.currentStep.resources && derived.currentStep.resources.length > 0 && (
             <div className="im-field-block">
               <h2>Resources</h2>
-              <ul>
+              <ul className="im-resource-list">
                 {derived.currentStep.resources.map((resource) => (
                   <li key={resource.id}>
-                    {resource.label} · {resource.kind}
+                    <span>
+                      {resource.label} · {resource.kind}
+                    </span>
+                    <button type="button" onClick={() => handleOpenResource(resource.id)} disabled={busy}>
+                      Open
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -209,7 +242,7 @@ export function InstructorModeScreen({
             <div className="im-field-block">
               <h2>Command</h2>
               <p>{derived.currentStep.command.label}</p>
-              <p className="im-muted">Launching available in Phase 5</p>
+              <p className="im-muted">Running commands is not yet available</p>
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import type { Session, Step, Training } from "../model/schema";
+import type { AppSettings, Session, Step, Training } from "../model/schema";
 import { SessionEngineError } from "./errors";
 
 function findDuplicate(values: string[]): string | undefined {
@@ -60,6 +60,13 @@ export function validateSessionSemantics(session: Session, file?: string): void 
         file
       );
     }
+  }
+}
+
+export function validateAppSettingsSemantics(settings: AppSettings, file?: string): void {
+  const duplicate = findDuplicate(settings.trainings.map((registration) => registration.trainingId));
+  if (duplicate) {
+    throw new SessionEngineError(`AppSettings has duplicate TrainingRegistration.trainingId "${duplicate}"`, file);
   }
 }
 
