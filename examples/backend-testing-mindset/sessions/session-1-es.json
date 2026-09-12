@@ -1,0 +1,335 @@
+{
+  "id": "session-1-es",
+  "schemaVersion": 1,
+  "trainingId": "backend-testing-mindset",
+  "title": "De la Historia a la Evidencia — ¿Qué debería probar?",
+  "plannedDurationMinutes": 90,
+  "presentation": {
+    "id": "session-1-es-presentation",
+    "kind": "presentation",
+    "label": "Sesión 1 ES — diapositivas",
+    "root": "content",
+    "path": "presentations/Backend_Testing_Mindset_Session_1_ES.pptx"
+  },
+  "steps": [
+    {
+      "id": "slide-01-opening",
+      "type": "introduction",
+      "title": "De la Historia a la Evidencia — ¿Qué debería probar?",
+      "slideRef": 1,
+      "objective": "Frame the session's flow and its guiding question before any content.",
+      "plannedDurationMinutes": 2,
+      "facilitatorGuidance": "State the flow aloud: Jira → AC → escenarios → Postman → evidencia. Land the guiding question — ¿qué debería probar? — without answering it yet.",
+      "actions": ["Read the title and framing line aloud", "State the guiding question for the session"]
+    },
+    {
+      "id": "slide-02-what-would-you-test",
+      "type": "discussion",
+      "title": "¿Qué probaría?",
+      "slideRef": 2,
+      "objective": "Surface the group's instinct before showing any real evidence.",
+      "plannedDurationMinutes": 3,
+      "facilitatorGuidance": "Ask the question, take a few quick answers, and let disagreement stand. Do not resolve it here — the session builds toward the answer.",
+      "questions": ["¿Qué probaría antes de ver ninguna evidencia?"]
+    },
+    {
+      "id": "slide-03-jira-story",
+      "type": "introduction",
+      "title": "PET-142 · Agregar una mascota al catálogo",
+      "slideRef": 3,
+      "objective": "Introduce the Jira story the whole session builds on.",
+      "plannedDurationMinutes": 2,
+      "facilitatorGuidance": "Read the story aloud. Keep the group focused on understanding intent — do not let anyone start writing requests yet.",
+      "actions": ["Read the Jira story aloud", "State the slide's framing: convertir una historia sencilla en evidencia útil"]
+    },
+    {
+      "id": "slide-04-acceptance-criteria",
+      "type": "discussion",
+      "title": "Criterios de aceptación",
+      "slideRef": 4,
+      "objective": "Model reading acceptance criteria for behavior, not for test cases.",
+      "plannedDurationMinutes": 3,
+      "facilitatorGuidance": "Walk each AC line and ask what verb, condition, or observable it implies. Resist jumping to Postman — this is still a reading exercise.",
+      "questions": ["¿Qué verbo, condición u observable implica cada criterio?"]
+    },
+    {
+      "id": "slide-05-example-mapping-intro",
+      "type": "discussion",
+      "title": "Example Mapping",
+      "slideRef": 5,
+      "objective": "Introduce Example Mapping before pairs use it themselves.",
+      "plannedDurationMinutes": 4,
+      "facilitatorGuidance": "Model exactly one Regla/Ejemplos pair live, mirroring the on-screen cards. Leave the slide's open question for pairs to explore next.",
+      "actions": ["Model one Regla/Ejemplos pair live"],
+      "questions": ["¿Qué valida el producto cuando falta un campo?"]
+    },
+    {
+      "id": "slide-06-example-mapping-pairs",
+      "type": "pair_work",
+      "title": "Lea la historia, identifique reglas y escriba ejemplos y preguntas",
+      "slideRef": 6,
+      "objective": "Have pairs turn the story and AC into rules, examples, and open questions.",
+      "plannedDurationMinutes": 5,
+      "facilitatorGuidance": "Circulate while pairs fill Regla → Ejemplos → Preguntas on the worksheet. Use the instructor answer key to validate the group's mapping, not to hand out answers.",
+      "actions": ["Circulate while pairs complete the Example Mapping worksheet"],
+      "checklist": [{ "id": "worksheet-ready", "label": "Hoja de trabajo lista" }],
+      "doNotReveal": ["No mostrar la clave de respuestas del instructor a los participantes."],
+      "resources": [
+        {
+          "id": "session-1-worksheet-slide-06",
+          "kind": "file",
+          "label": "Participant worksheet",
+          "root": "content",
+          "path": "participant/session-1/session-1-worksheet.md"
+        },
+        {
+          "id": "session-1-answer-key-slide-06",
+          "kind": "file",
+          "label": "Instructor answer key (private)",
+          "root": "content",
+          "path": "instructor/session-1/session-1-answer-key.md"
+        }
+      ]
+    },
+    {
+      "id": "slide-07-hane-lens",
+      "type": "debrief",
+      "title": "H/A/N/E como lente de descubrimiento",
+      "slideRef": 7,
+      "objective": "Synthesize Happy/Alternative/Negative/Edge as a discovery lens, not a taxonomy debate.",
+      "plannedDurationMinutes": 4,
+      "facilitatorGuidance": "Land the slide's own point: la etiqueta importa menos que por qué el escenario importa. Do not let the group get stuck arguing borderline labels."
+    },
+    {
+      "id": "slide-08-prioritize",
+      "type": "discussion",
+      "title": "Priorizar antes de liberar",
+      "slideRef": 8,
+      "objective": "Practice prioritizing scenarios under a release constraint.",
+      "plannedDurationMinutes": 5,
+      "facilitatorGuidance": "Pose the four-scenario constraint and probe for impacto de negocio, riesgo de integración, and información que falta. Use the answer key's recommended priorities only to check the group's reasoning.",
+      "questions": ["Si solo pudiera ejecutar cuatro escenarios, ¿cuáles aportarían la evidencia más sólida?"],
+      "doNotReveal": ["No mostrar la clave de respuestas del instructor a los participantes."],
+      "resources": [
+        {
+          "id": "session-1-worksheet-slide-08",
+          "kind": "file",
+          "label": "Participant worksheet",
+          "root": "content",
+          "path": "participant/session-1/session-1-worksheet.md"
+        },
+        {
+          "id": "session-1-answer-key-slide-08",
+          "kind": "file",
+          "label": "Instructor answer key (private)",
+          "root": "content",
+          "path": "instructor/session-1/session-1-answer-key.md"
+        }
+      ]
+    },
+    {
+      "id": "slide-09-initial-evidence",
+      "type": "live_demo",
+      "title": "Evidencia inicial en Postman",
+      "slideRef": 9,
+      "objective": "Show a status-code-only assertion and ask whether it is enough.",
+      "plannedDurationMinutes": 4,
+      "facilitatorGuidance": "Run the Starter Collection's create request asserting only status 200, then ask ¿es suficiente? Let the question hang before slide 10 answers it.",
+      "actions": ["Run the Create request from the Starter Collection", "Show only the status-200 assertion passing"],
+      "questions": ["¿Es suficiente un status 200?"],
+      "checklist": [
+        { "id": "starter-collection-opened", "label": "Starter Collection abierta" },
+        { "id": "petstore-environment-selected", "label": "Entorno Petstore v3 seleccionado" }
+      ],
+      "doNotReveal": ["No mostrar la Solution Collection todavía; se usa hasta la demostración de Newman (Slide 15)."],
+      "resources": [
+        {
+          "id": "postman-starter-collection-slide-09",
+          "kind": "file",
+          "label": "Postman Starter Collection",
+          "root": "content",
+          "path": "postman/collections/backend-testing-mindset-session-1-starter.postman_collection.json"
+        },
+        {
+          "id": "postman-environment-slide-09",
+          "kind": "file",
+          "label": "Petstore v3 environment",
+          "root": "content",
+          "path": "postman/environments/petstore-v3.postman_environment.json"
+        }
+      ]
+    },
+    {
+      "id": "slide-10-stronger-evidence",
+      "type": "discussion",
+      "title": "Evidencia más sólida",
+      "slideRef": 10,
+      "objective": "Identify which response fields actually deserve an assertion.",
+      "plannedDurationMinutes": 5,
+      "facilitatorGuidance": "Walk the ID → name → status → photoUrls progression and ask what each one proves about the promised behavior.",
+      "questions": ["¿Qué expresa realmente el comportamiento prometido?"],
+      "doNotReveal": ["No mostrar la Solution Collection todavía; se usa hasta la demostración de Newman (Slide 15)."]
+    },
+    {
+      "id": "slide-11-request-chaining",
+      "type": "live_demo",
+      "title": "Encadenamiento de solicitudes",
+      "slideRef": 11,
+      "objective": "Demonstrate chaining a create request into a retrieve request.",
+      "plannedDurationMinutes": 5,
+      "facilitatorGuidance": "Show capturing the created id with pm.collectionVariables.set('createdPetId', body.id) and reusing it in the retrieve request before comparing the two.",
+      "actions": ["Demonstrate capturing createdPetId via a collection variable", "Chain the retrieve request using the captured id"],
+      "doNotReveal": ["No mostrar la Solution Collection todavía; se usa hasta la demostración de Newman (Slide 15)."],
+      "resources": [
+        {
+          "id": "postman-starter-collection-slide-11",
+          "kind": "file",
+          "label": "Postman Starter Collection",
+          "root": "content",
+          "path": "postman/collections/backend-testing-mindset-session-1-starter.postman_collection.json"
+        },
+        {
+          "id": "postman-environment-slide-11",
+          "kind": "file",
+          "label": "Petstore v3 environment",
+          "root": "content",
+          "path": "postman/environments/petstore-v3.postman_environment.json"
+        }
+      ]
+    },
+    {
+      "id": "slide-12-postman-pairs",
+      "type": "pair_work",
+      "title": "Construya validaciones y encadene Create con Retrieve",
+      "slideRef": 12,
+      "objective": "Have pairs build meaningful assertions and chain Create with Retrieve themselves.",
+      "plannedDurationMinutes": 12,
+      "facilitatorGuidance": "Circulate with probing questions (e.g. ¿qué valor debe verse sin cambios en la respuesta?). Reveal the intentionally weak 200-only assertion only once groups have already started.",
+      "actions": ["Circulate with probing questions", "Reveal the prepared weak 200-only assertion once groups have begun"],
+      "checklist": [{ "id": "participant-exercise-started", "label": "Ejercicio de participantes iniciado" }],
+      "doNotReveal": ["No mostrar la clave de respuestas del instructor a los participantes.", "No mostrar la Solution Collection todavía; se usa hasta la demostración de Newman (Slide 15)."],
+      "resources": [
+        {
+          "id": "session-1-worksheet-slide-12",
+          "kind": "file",
+          "label": "Participant worksheet",
+          "root": "content",
+          "path": "participant/session-1/session-1-worksheet.md"
+        },
+        {
+          "id": "postman-starter-collection-slide-12",
+          "kind": "file",
+          "label": "Postman Starter Collection",
+          "root": "content",
+          "path": "postman/collections/backend-testing-mindset-session-1-starter.postman_collection.json"
+        },
+        {
+          "id": "postman-environment-slide-12",
+          "kind": "file",
+          "label": "Petstore v3 environment",
+          "root": "content",
+          "path": "postman/environments/petstore-v3.postman_environment.json"
+        }
+      ]
+    },
+    {
+      "id": "slide-13-negative-scenario",
+      "type": "investigation",
+      "title": "Escenario negativo controlado",
+      "slideRef": 13,
+      "objective": "Investigate what an unknown numeric ID actually returns.",
+      "plannedDurationMinutes": 8,
+      "facilitatorGuidance": "Run the controlled non-happy request against an unknown numeric ID and let the group observe the documented 404 before naming what remains an open question.",
+      "actions": ["Run the controlled non-happy request against an unknown numeric ID", "Let the group observe the result before explaining it"],
+      "doNotReveal": ["No revelar que el resultado será 404 antes de que el grupo lo observe."],
+      "checklist": [{ "id": "unknown-id-result-observed", "label": "Resultado de ID desconocido observado" }],
+      "resources": [
+        {
+          "id": "postman-starter-collection-slide-13",
+          "kind": "file",
+          "label": "Postman Starter Collection",
+          "root": "content",
+          "path": "postman/collections/backend-testing-mindset-session-1-starter.postman_collection.json"
+        }
+      ]
+    },
+    {
+      "id": "slide-14-confidence-boundary",
+      "type": "debrief",
+      "title": "Lo que pueden demostrar las validaciones de API",
+      "slideRef": 14,
+      "objective": "Draw the boundary between what API assertions can and cannot prove.",
+      "plannedDurationMinutes": 6,
+      "facilitatorGuidance": "Contrast what the responses actually demonstrated (respuesta, valores, IDs, 404) against what they never touched (datos persistidos, logs, dependencias).",
+      "doNotReveal": ["No mostrar la Solution Collection todavía; se usa hasta la demostración de Newman (Slide 15)."]
+    },
+    {
+      "id": "slide-15-newman-teaser",
+      "type": "live_demo",
+      "title": "Newman repite la colección",
+      "slideRef": 15,
+      "objective": "Run the Solution Collection with Newman and compare it with the earlier Postman run.",
+      "plannedDurationMinutes": 5,
+      "facilitatorGuidance": "Run the pinned Newman command from the instructor machine only. Land the slide's point — Newman no hace fuertes las pruebas débiles — do not teach installation, reporters, or CLI options.",
+      "actions": ["Run the Newman command against the Solution Collection", "Compare the Newman output with the earlier Postman run"],
+      "checklist": [
+        { "id": "solution-collection-ready", "label": "Solution Collection lista para el teaser de Newman" },
+        { "id": "newman-output-reviewed", "label": "Salida de Newman revisada" }
+      ],
+      "resources": [
+        {
+          "id": "postman-solution-collection-slide-15",
+          "kind": "file",
+          "label": "Postman Solution Collection (instructor only)",
+          "root": "content",
+          "path": "postman/collections/backend-testing-mindset-session-1-solution.postman_collection.json"
+        }
+      ],
+      "command": {
+        "id": "run-newman-teaser",
+        "label": "Run Newman teaser (Solution Collection)",
+        "executable": "npx",
+        "args": [
+          "newman",
+          "run",
+          "../postman/collections/backend-testing-mindset-session-1-solution.postman_collection.json",
+          "-e",
+          "../postman/environments/petstore-v3.postman_environment.json"
+        ],
+        "root": "content",
+        "cwd": "newman",
+        "sensitive": false
+      }
+    },
+    {
+      "id": "slide-16-all-green",
+      "type": "debrief",
+      "title": "Todo está en verde. ¿Terminamos?",
+      "slideRef": 16,
+      "objective": "Hold the confidence-boundary question open before bridging to Session 2.",
+      "plannedDurationMinutes": 7,
+      "facilitatorGuidance": "Ask the question and let disagreement surface before naming what remains unverified: base de datos, logs, dependencias, reintentos, estado real.",
+      "questions": ["Todo está en verde. ¿Terminamos?"],
+      "doNotReveal": ["No revelar todavía la conclusión de la Sesión 2."],
+      "resources": [
+        {
+          "id": "session-1-worksheet-slide-16",
+          "kind": "file",
+          "label": "Participant worksheet (reflection)",
+          "root": "content",
+          "path": "participant/session-1/session-1-worksheet.md"
+        }
+      ]
+    },
+    {
+      "id": "slide-17-bridge",
+      "type": "closing",
+      "title": "Puente hacia la Sesión 2",
+      "slideRef": 17,
+      "objective": "Recap the session's arc and bridge to Session 2's deeper evidence question.",
+      "plannedDurationMinutes": 10,
+      "facilitatorGuidance": "Recap Historia → Escenarios → Validaciones → Confianza, then close with the bridge question: ¿qué ocurrió fuera de la respuesta HTTP? This buffer also protects hands-on time and exit tickets.",
+      "actions": ["Recap the Historia → Escenarios → Validaciones → Confianza arc", "State the bridge question for Session 2"]
+    }
+  ]
+}

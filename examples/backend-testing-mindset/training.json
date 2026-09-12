@@ -1,0 +1,7 @@
+{
+  "id": "backend-testing-mindset",
+  "schemaVersion": 1,
+  "title": "Backend Testing Mindset",
+  "description": "Portable Instructor Copilot definition for the Backend Testing Mindset course. Real training assets (presentations, worksheets, Postman/Newman artifacts) live in the separate Backend-Testing-Mindset-Training project and are referenced through the \"content\" content root, never copied here.",
+  "sessionRefs": ["session-1-es"]
+}
