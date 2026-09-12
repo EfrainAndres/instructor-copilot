@@ -10,6 +10,7 @@ import {
   type CreateTrainingInput,
   type IpcResult,
   type OpenCurrentStepResourceInput,
+  type RunCurrentStepCommandInput,
   type SaveTrainingMetadataInput,
   type SetChecklistItemInput,
   type StartRunInput
@@ -37,6 +38,7 @@ import {
   startRun
 } from "./runController";
 import { openCurrentStepResource, openPresentation } from "./resourceController";
+import { runCurrentStepCommand } from "./commandController";
 
 function getAppInfo(): AppInfo {
   return {
@@ -159,6 +161,12 @@ void app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.resourceOpenPresentation, () => toResult(() => openPresentation()));
   ipcMain.handle(IPC_CHANNELS.resourceOpenCurrentStep, (_event, input: OpenCurrentStepResourceInput) =>
     toResult(() => openCurrentStepResource(input.resourceId))
+  );
+
+  ipcMain.handle(IPC_CHANNELS.commandRunCurrentStep, (event, input: RunCurrentStepCommandInput) =>
+    toResult(() =>
+      runCurrentStepCommand(BrowserWindow.fromWebContents(event.sender), event.sender, input.commandId)
+    )
   );
 
   createMainWindow();

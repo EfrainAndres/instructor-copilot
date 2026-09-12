@@ -10,6 +10,7 @@ import {
   getActiveStepRun,
   isRunPaused,
   pauseRun,
+  resolveCurrentStepCommand,
   resolveNextStepId,
   resolvePreviousStepId,
   resumeRun,
@@ -401,5 +402,57 @@ describe("run state integrity: open Step interval invariants", () => {
     const run = skipCurrentStep(newRun(twoStepSession()), T5);
     expect(getActiveStepRun(run)).toBeUndefined();
     expect(() => validateSessionRunSemantics(run)).not.toThrow();
+  });
+});
+
+function sessionWithCommand(): Session {
+  return {
+    id: "session-1",
+    schemaVersion: 1,
+    trainingId: "training-1",
+    title: "Command Session",
+    plannedDurationMinutes: 10,
+    steps: [
+      {
+        id: "a",
+        type: "live_demo",
+        title: "Step A",
+        plannedDurationMinutes: 5,
+        command: {
+          id: "reset-env",
+          label: "Reset environment",
+          executable: "node",
+          args: ["scripts/reset.mjs"],
+          root: "content",
+          cwd: "scripts"
+        }
+      },
+      { id: "b", type: "closing", title: "Step B", plannedDurationMinutes: 5 }
+    ]
+  };
+}
+
+describe("resolveCurrentStepCommand", () => {
+  it("succeeds for the exact authored command id on the current Step", () => {
+    const session = sessionWithCommand();
+    const command = resolveCurrentStepCommand(session, "a", "reset-env");
+    expect(command).toEqual(session.steps[0]!.command);
+  });
+
+  it("rejects a command id that does not match the current Step's command", () => {
+    const session = sessionWithCommand();
+    expect(() => resolveCurrentStepCommand(session, "a", "some-other-id")).toThrow(
+      /does not match the current Step/
+    );
+  });
+
+  it("rejects when the current Step has no command", () => {
+    const session = sessionWithCommand();
+    expect(() => resolveCurrentStepCommand(session, "b", "reset-env")).toThrow(/no command/);
+  });
+
+  it("rejects when there is no current Step", () => {
+    const session = sessionWithCommand();
+    expect(() => resolveCurrentStepCommand(session, undefined, "reset-env")).toThrow(/No Step is currently active/);
   });
 });

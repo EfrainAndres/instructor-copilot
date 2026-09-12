@@ -18,6 +18,7 @@ export { loadSessionRun, saveSessionRun } from "./run/persistence";
 
 export { collectRequiredContentRootIds } from "./model/contentRoots";
 export { resolveWithinRoot } from "./resources/pathContainment";
+export { buildCommandExecutionPlan, type CommandExecutionPlan } from "./resources/commandExecutionPlan";
 export {
   loadAppSettings,
   loadOrCreateAppSettings,

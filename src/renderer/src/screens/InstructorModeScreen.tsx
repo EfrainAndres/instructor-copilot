@@ -1,7 +1,19 @@
-import { useEffect, useState, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 import type { InstructorRunContext, IpcResult } from "../../../shared/ipc";
 import { deriveInstructorModeState } from "../lib/instructorModeState";
 import { formatMinutesAsClock, formatScheduleDelta } from "../lib/timeFormat";
+import { appendWithCap } from "../lib/commandOutputBuffer";
+
+interface CommandExecutionState {
+  executionId: string;
+  label: string;
+  stdout: string;
+  stderr: string;
+  status: "running" | "completed";
+  exitCode?: number | null;
+  signal?: string | null;
+  error?: string;
+}
 
 interface InstructorModeScreenProps {
   context: InstructorRunContext;
@@ -21,6 +33,33 @@ export function InstructorModeScreen({
   const [nowIso, setNowIso] = useState(() => new Date().toISOString());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [commandExecution, setCommandExecution] = useState<CommandExecutionState | null>(null);
+  const [commandStarting, setCommandStarting] = useState(false);
+  const currentExecutionIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribeOutput = window.instructorCopilot.command.onOutput((event) => {
+      if (event.executionId !== currentExecutionIdRef.current) return;
+      setCommandExecution((prev) => {
+        if (!prev || prev.executionId !== event.executionId) return prev;
+        return event.stream === "stdout"
+          ? { ...prev, stdout: appendWithCap(prev.stdout, event.text) }
+          : { ...prev, stderr: appendWithCap(prev.stderr, event.text) };
+      });
+    });
+    const unsubscribeCompleted = window.instructorCopilot.command.onCompleted((event) => {
+      if (event.executionId !== currentExecutionIdRef.current) return;
+      setCommandExecution((prev) =>
+        prev && prev.executionId === event.executionId
+          ? { ...prev, status: "completed", exitCode: event.exitCode, signal: event.signal, error: event.error }
+          : prev
+      );
+    });
+    return () => {
+      unsubscribeOutput();
+      unsubscribeCompleted();
+    };
+  }, []);
 
   const completedAt = context.run.completedAt;
   useEffect(() => {
@@ -81,6 +120,32 @@ export function InstructorModeScreen({
 
   function handleOpenResource(resourceId: string): void {
     void handleResourceAction(() => window.instructorCopilot.resource.openCurrentStepResource({ resourceId }));
+  }
+
+  async function handleRunCommand(commandId: string): Promise<void> {
+    setError(null);
+    setCommandStarting(true);
+    try {
+      const result = await window.instructorCopilot.command.runCurrentStep({ commandId });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      if (result.value.canceled) {
+        return;
+      }
+      const executionId = result.value.executionId!;
+      currentExecutionIdRef.current = executionId;
+      setCommandExecution({
+        executionId,
+        label: result.value.label ?? commandId,
+        stdout: "",
+        stderr: "",
+        status: "running"
+      });
+    } finally {
+      setCommandStarting(false);
+    }
   }
 
   if (derived.completed) {
@@ -241,8 +306,23 @@ export function InstructorModeScreen({
           {derived.currentStep.command && (
             <div className="im-field-block">
               <h2>Command</h2>
-              <p>{derived.currentStep.command.label}</p>
-              <p className="im-muted">Running commands is not yet available</p>
+              <p className="im-command-label">
+                {derived.currentStep.command.label}
+                {derived.currentStep.command.sensitive && <span className="im-sensitive-badge">Sensitive</span>}
+              </p>
+              <p className="im-command-preview">
+                <code>{derived.currentStep.command.executable}</code>
+                {(derived.currentStep.command.args ?? []).map((arg, index) => (
+                  <code key={index}> {arg}</code>
+                ))}
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleRunCommand(derived.currentStep!.command!.id)}
+                disabled={commandStarting || commandExecution?.status === "running"}
+              >
+                Run Command
+              </button>
             </div>
           )}
 
@@ -253,6 +333,32 @@ export function InstructorModeScreen({
       ) : (
         <section className="im-step-content">
           <p className="empty-state">{derived.stepCount === 0 ? "No steps in this session." : "No active Step."}</p>
+        </section>
+      )}
+
+      {commandExecution && (
+        <section className="im-command-output">
+          <h2>Command Output</h2>
+          <p className="im-command-output-label">{commandExecution.label}</p>
+          <p className="im-command-output-status">
+            {commandExecution.status === "running"
+              ? "Running…"
+              : commandExecution.error
+                ? `Failed to start command: ${commandExecution.error}`
+                : `Exit code: ${commandExecution.exitCode ?? "—"}`}
+          </p>
+          {commandExecution.stdout && (
+            <>
+              <h3>stdout</h3>
+              <pre className="im-command-stream">{commandExecution.stdout}</pre>
+            </>
+          )}
+          {commandExecution.stderr && (
+            <>
+              <h3>stderr</h3>
+              <pre className="im-command-stream im-command-stderr">{commandExecution.stderr}</pre>
+            </>
+          )}
         </section>
       )}
 

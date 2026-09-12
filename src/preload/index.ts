@@ -1,8 +1,11 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import {
   IPC_CHANNELS,
   type AppInfo,
   type ClearContentRootInput,
+  type CommandCompletedEvent,
+  type CommandOutputEvent,
+  type CommandStartResult,
   type ConfigureContentRootInput,
   type ConfigureContentRootResult,
   type ContentRootStatus,
@@ -12,6 +15,7 @@ import {
   type IpcResult,
   type OpenCurrentStepResourceInput,
   type OpenOrCreateTrainingResult,
+  type RunCurrentStepCommandInput,
   type SaveTrainingMetadataInput,
   type Session,
   type SetChecklistItemInput,
@@ -58,6 +62,20 @@ const instructorCopilotApi = {
     openPresentation: (): Promise<IpcResult<null>> => ipcRenderer.invoke(IPC_CHANNELS.resourceOpenPresentation),
     openCurrentStepResource: (input: OpenCurrentStepResourceInput): Promise<IpcResult<null>> =>
       ipcRenderer.invoke(IPC_CHANNELS.resourceOpenCurrentStep, input)
+  },
+  command: {
+    runCurrentStep: (input: RunCurrentStepCommandInput): Promise<IpcResult<CommandStartResult>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.commandRunCurrentStep, input),
+    onOutput: (listener: (event: CommandOutputEvent) => void): (() => void) => {
+      const handler = (_ipcEvent: IpcRendererEvent, payload: CommandOutputEvent): void => listener(payload);
+      ipcRenderer.on(IPC_CHANNELS.commandOutput, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.commandOutput, handler);
+    },
+    onCompleted: (listener: (event: CommandCompletedEvent) => void): (() => void) => {
+      const handler = (_ipcEvent: IpcRendererEvent, payload: CommandCompletedEvent): void => listener(payload);
+      ipcRenderer.on(IPC_CHANNELS.commandCompleted, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.commandCompleted, handler);
+    }
   }
 };
 

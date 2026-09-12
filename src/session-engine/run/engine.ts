@@ -1,4 +1,4 @@
-import type { Session } from "../model/schema";
+import type { CommandAction, Session } from "../model/schema";
 import { SessionEngineError } from "../validation/errors";
 import { validateSessionRunSemantics, type SessionRun, type StepRun, type TimeInterval } from "./schema";
 import { SESSION_RUN_SCHEMA_VERSION } from "./schema";
@@ -314,4 +314,31 @@ export function resolvePreviousStepId(session: Session, currentStepId: string): 
     throw new SessionEngineError(`Step "${currentStepId}" does not exist in this session`);
   }
   return session.steps[index - 1]?.id;
+}
+
+/**
+ * Resolves the trusted authored CommandAction for the current-Step command
+ * lookup used by Phase 5B's command runner: `commandId` (renderer-submitted)
+ * must match the CURRENT active Step's own CommandAction.id exactly - never a
+ * different Step's command. Pure lookup - never mutates run state.
+ */
+export function resolveCurrentStepCommand(
+  session: Session,
+  currentStepId: string | undefined,
+  commandId: string
+): CommandAction {
+  if (!currentStepId) {
+    throw new SessionEngineError("No Step is currently active");
+  }
+  const step = session.steps.find((candidate) => candidate.id === currentStepId);
+  if (!step) {
+    throw new SessionEngineError(`Step "${currentStepId}" does not exist in this Session`);
+  }
+  if (!step.command) {
+    throw new SessionEngineError("The current Step has no command");
+  }
+  if (step.command.id !== commandId) {
+    throw new SessionEngineError("Command id does not match the current Step's command");
+  }
+  return step.command;
 }

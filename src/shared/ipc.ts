@@ -25,7 +25,10 @@ export const IPC_CHANNELS = {
   trainingConfigureContentRoot: "training:configure-content-root",
   trainingClearContentRoot: "training:clear-content-root",
   resourceOpenPresentation: "resource:open-presentation",
-  resourceOpenCurrentStep: "resource:open-current-step-resource"
+  resourceOpenCurrentStep: "resource:open-current-step-resource",
+  commandRunCurrentStep: "command:run-current-step",
+  commandOutput: "command:output",
+  commandCompleted: "command:completed"
 } as const;
 
 /**
@@ -108,6 +111,34 @@ export interface ConfigureContentRootResult {
 
 export interface OpenCurrentStepResourceInput {
   resourceId: string;
+}
+
+export interface RunCurrentStepCommandInput {
+  commandId: string;
+}
+
+/**
+ * executionId is main-generated, correlating streamed output/completion events
+ * with one execution - it never enters SessionRun.
+ */
+export interface CommandStartResult {
+  canceled: boolean;
+  executionId?: string;
+  commandId?: string;
+  label?: string;
+}
+
+export interface CommandOutputEvent {
+  executionId: string;
+  stream: "stdout" | "stderr";
+  text: string;
+}
+
+export interface CommandCompletedEvent {
+  executionId: string;
+  exitCode: number | null;
+  signal: string | null;
+  error?: string;
 }
 
 export type { Session, SessionRun, TrainingBundle };
