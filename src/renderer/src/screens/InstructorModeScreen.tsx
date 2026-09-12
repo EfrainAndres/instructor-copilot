@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from "react";
 import type { InstructorRunContext, IpcResult } from "../../../shared/ipc";
 import { deriveInstructorModeState } from "../lib/instructorModeState";
-import { formatMinutesAsClock, formatScheduleDelta } from "../lib/timeFormat";
+import { formatMinutesAsClock, formatNoteTimestamp, formatScheduleDelta } from "../lib/timeFormat";
 import { reduceCommandExecution, type CommandExecutionState } from "../lib/commandExecutionState";
 import { deriveEvidenceStageDisplay } from "../lib/evidenceStageDisplay";
 
@@ -29,6 +29,7 @@ export function InstructorModeScreen({
   // Seeded once from the `recovered` prop; not re-synced on prop changes since this
   // banner is purely local UX state, not persisted.
   const [showRecoveredBanner, setShowRecoveredBanner] = useState(recovered);
+  const [noteText, setNoteText] = useState("");
   const [commandExecution, setCommandExecution] = useState<CommandExecutionState | null>(null);
   const [commandStarting, setCommandStarting] = useState(false);
   // Tracks the latest known executionId synchronously (independent of React's render
@@ -104,6 +105,26 @@ export function InstructorModeScreen({
 
   function handleReleaseEvidence(evidenceStageId: string): void {
     void handleAction(() => window.instructorCopilot.run.releaseEvidenceStage({ evidenceStageId }));
+  }
+
+  async function handleAddNote(): Promise<void> {
+    const trimmed = noteText.trim();
+    if (trimmed.length === 0) {
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await window.instructorCopilot.run.addNote({ text: noteText });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onContextUpdated(result.value);
+      setNoteText("");
+    } finally {
+      setBusy(false);
+    }
   }
 
   /** Launch actions never mutate SessionRun state - only the error banner reacts. */
@@ -368,6 +389,35 @@ export function InstructorModeScreen({
               </ul>
             </div>
           )}
+
+          <div className="im-field-block im-notes">
+            <h2>Notes</h2>
+            <textarea
+              className="im-notes-input"
+              value={noteText}
+              onChange={(event) => setNoteText(event.target.value)}
+              placeholder="Quick note for this Step…"
+              rows={3}
+            />
+            <button type="button" onClick={() => void handleAddNote()} disabled={busy || noteText.trim().length === 0}>
+              Add Note
+            </button>
+            {(() => {
+              const stepNotes = context.run.notes
+                .filter((note) => note.stepId === derived.currentStepId)
+                .slice()
+                .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+              return stepNotes.length > 0 ? (
+                <ul className="im-notes-list">
+                  {stepNotes.map((note) => (
+                    <li key={note.id}>
+                      <span className="im-note-time">{formatNoteTimestamp(note.timestamp)}</span> — {note.text}
+                    </li>
+                  ))}
+                </ul>
+              ) : null;
+            })()}
+          </div>
         </section>
       ) : (
         <section className="im-step-content">

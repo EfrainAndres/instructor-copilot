@@ -24,3 +24,33 @@ export function formatScheduleDelta(deltaMinutes: number): ScheduleDeltaDisplay 
   }
   return { status: "BEHIND", detail: `${clock} behind` };
 }
+
+/** A signed MM:SS string, e.g. "+02:10" / "-01:18" / "00:00" - never clamped to zero. */
+export function formatSignedMinutesAsClock(deltaMinutes: number): string {
+  if (deltaMinutes === 0) {
+    return formatMinutesAsClock(0);
+  }
+  const sign = deltaMinutes > 0 ? "+" : "-";
+  return `${sign}${formatMinutesAsClock(Math.abs(deltaMinutes))}`;
+}
+
+export interface SignedDeltaDisplay {
+  label: "OVER" | "UNDER" | "ON TIME";
+  clock: string;
+}
+
+/** Run Report's overall-delta wording: OVER/UNDER/ON TIME, distinct from Instructor Mode's live ON PLAN/BEHIND drift wording. */
+export function formatSignedDelta(deltaMinutes: number): SignedDeltaDisplay {
+  if (deltaMinutes > 0) {
+    return { label: "OVER", clock: formatSignedMinutesAsClock(deltaMinutes) };
+  }
+  if (deltaMinutes < 0) {
+    return { label: "UNDER", clock: formatSignedMinutesAsClock(deltaMinutes) };
+  }
+  return { label: "ON TIME", clock: formatMinutesAsClock(0) };
+}
+
+/** Human-readable clock time (24-hour, HH:MM) for an instructor note's timestamp. */
+export function formatNoteTimestamp(isoTimestamp: string): string {
+  return new Date(isoTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}

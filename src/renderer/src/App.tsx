@@ -5,12 +5,14 @@ import { HomeScreen } from "./screens/HomeScreen";
 import { TrainingDetailScreen } from "./screens/TrainingDetailScreen";
 import { SessionEditorScreen } from "./screens/SessionEditorScreen";
 import { InstructorModeScreen } from "./screens/InstructorModeScreen";
+import { RunReportScreen } from "./screens/RunReportScreen";
 
 type View =
   | { name: "home" }
   | { name: "trainingDetail" }
   | { name: "sessionEditor"; sessionId: string }
-  | { name: "instructorMode" };
+  | { name: "instructorMode" }
+  | { name: "runReport" };
 
 export function App(): JSX.Element {
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
@@ -75,6 +77,9 @@ export function App(): JSX.Element {
 
   function handleRunContextUpdated(context: InstructorRunContext): void {
     setRunContext(context);
+    if (context.run.completedAt) {
+      setView({ name: "runReport" });
+    }
   }
 
   function handleBackToTrainingFromRun(): void {
@@ -120,7 +125,7 @@ export function App(): JSX.Element {
         onRunStarted={handleRunStarted}
       />
     );
-  } else {
+  } else if (view.name === "instructorMode") {
     content = runContext ? (
       <InstructorModeScreen
         context={runContext}
@@ -128,6 +133,18 @@ export function App(): JSX.Element {
         onBackToTraining={handleBackToTrainingFromRun}
         recovered={justRecovered}
       />
+    ) : (
+      <TrainingDetailScreen
+        bundle={bundle}
+        onBundleUpdated={handleBundleUpdated}
+        onOpenSession={(sessionId) => setView({ name: "sessionEditor", sessionId })}
+        onBackToHome={handleBackToHome}
+        onRunStarted={handleRunStarted}
+      />
+    );
+  } else {
+    content = runContext ? (
+      <RunReportScreen context={runContext} onBackToTraining={handleBackToTrainingFromRun} />
     ) : (
       <TrainingDetailScreen
         bundle={bundle}

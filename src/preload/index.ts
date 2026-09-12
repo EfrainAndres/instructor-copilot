@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import {
   IPC_CHANNELS,
+  type AddInstructorNoteInput,
   type AppInfo,
   type ClearContentRootInput,
   type CommandCompletedEvent,
@@ -62,6 +63,8 @@ const instructorCopilotApi = {
       ipcRenderer.invoke(IPC_CHANNELS.runSetChecklistItem, input),
     releaseEvidenceStage: (input: ReleaseEvidenceStageInput): Promise<IpcResult<InstructorRunContext>> =>
       ipcRenderer.invoke(IPC_CHANNELS.runReleaseEvidenceStage, input),
+    addNote: (input: AddInstructorNoteInput): Promise<IpcResult<InstructorRunContext>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.runAddNote, input),
     complete: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runComplete)
   },
   resource: {

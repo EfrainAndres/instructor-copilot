@@ -1,6 +1,7 @@
 import type { CommandAction, Session } from "../model/schema";
 import { SessionEngineError } from "../validation/errors";
-import { validateSessionRunSemantics, type SessionRun, type StepRun, type TimeInterval } from "./schema";
+import { isSafeId } from "../validation/ids";
+import { validateSessionRunSemantics, type InstructorNote, type SessionRun, type StepRun, type TimeInterval } from "./schema";
 import { SESSION_RUN_SCHEMA_VERSION } from "./schema";
 
 function assertValidTimestamp(value: string, label: string): void {
@@ -340,6 +341,52 @@ export function releaseEvidenceStage(
   );
 
   return finalizeAndValidate({ ...run, stepRuns });
+}
+
+export interface AddInstructorNoteInput {
+  stepId: string;
+  noteId: string;
+  timestamp: string;
+  text: string;
+}
+
+/**
+ * Appends one Step-scoped InstructorNote. Notes are runtime history, not
+ * authored/timing/checklist/evidence state - this touches only `run.notes`.
+ * Allowed anytime before completion, including while paused (unlike navigation,
+ * note-taking has no interval to open/close). `noteId`/`timestamp` are supplied
+ * by the caller (main generates them) rather than derived here, mirroring every
+ * other engine operation's "now is passed in" convention.
+ */
+export function addInstructorNote(run: SessionRun, session: Session, input: AddInstructorNoteInput): SessionRun {
+  assertNotCompleted(run);
+  assertValidTimestamp(input.timestamp, "timestamp");
+
+  if (!isSafeId(input.noteId)) {
+    throw new SessionEngineError(`Unsafe note id "${input.noteId}"`);
+  }
+
+  const step = session.steps.find((candidate) => candidate.id === input.stepId);
+  if (!step) {
+    throw new SessionEngineError(`Step "${input.stepId}" does not exist in this session`);
+  }
+  requireStepRun(run, input.stepId);
+
+  const text = input.text.trim();
+  if (text.length === 0) {
+    throw new SessionEngineError("Note text must not be blank");
+  }
+
+  const note: InstructorNote = {
+    id: input.noteId,
+    runId: run.id,
+    sessionId: run.sessionId,
+    stepId: input.stepId,
+    timestamp: input.timestamp,
+    text
+  };
+
+  return finalizeAndValidate({ ...run, notes: [...run.notes, note] });
 }
 
 /**

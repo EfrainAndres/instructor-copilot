@@ -172,4 +172,30 @@ export function validateSessionRunSemantics(run: SessionRun, file?: string): voi
     // no Step interval may be open.
     throw new SessionEngineError("No Step is active, but an open Step active interval exists", file);
   }
+
+  const stepIds = new Set(run.stepRuns.map((stepRun) => stepRun.stepId));
+  const duplicateNoteId = findDuplicate(run.notes.map((note) => note.id));
+  if (duplicateNoteId) {
+    throw new SessionEngineError(`SessionRun has duplicate InstructorNote.id "${duplicateNoteId}"`, file);
+  }
+  for (const note of run.notes) {
+    if (note.runId !== run.id) {
+      throw new SessionEngineError(`InstructorNote "${note.id}" has runId "${note.runId}" but belongs to run "${run.id}"`, file);
+    }
+    if (note.sessionId !== run.sessionId) {
+      throw new SessionEngineError(
+        `InstructorNote "${note.id}" has sessionId "${note.sessionId}" but this run's sessionId is "${run.sessionId}"`,
+        file
+      );
+    }
+    if (!stepIds.has(note.stepId)) {
+      throw new SessionEngineError(`InstructorNote "${note.id}" references unknown Step "${note.stepId}"`, file);
+    }
+    if (Date.parse(note.timestamp) < Date.parse(run.startedAt)) {
+      throw new SessionEngineError(`InstructorNote "${note.id}" has a timestamp earlier than SessionRun.startedAt`, file);
+    }
+    if (run.completedAt !== undefined && Date.parse(note.timestamp) > Date.parse(run.completedAt)) {
+      throw new SessionEngineError(`InstructorNote "${note.id}" has a timestamp later than SessionRun.completedAt`, file);
+    }
+  }
 }

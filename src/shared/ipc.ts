@@ -22,6 +22,7 @@ export const IPC_CHANNELS = {
   runResume: "run:resume",
   runSetChecklistItem: "run:set-checklist-item",
   runReleaseEvidenceStage: "run:release-evidence-stage",
+  runAddNote: "run:add-note",
   runComplete: "run:complete",
   trainingGetContentRootStatus: "training:get-content-root-status",
   trainingConfigureContentRoot: "training:configure-content-root",
@@ -82,6 +83,14 @@ export interface SetChecklistItemInput {
 
 export interface ReleaseEvidenceStageInput {
   evidenceStageId: string;
+}
+
+/**
+ * The renderer sends only the note text - main generates the note id,
+ * timestamp, and resolves the current active Step itself.
+ */
+export interface AddInstructorNoteInput {
+  text: string;
 }
 
 /**

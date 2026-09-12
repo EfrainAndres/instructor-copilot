@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   IPC_CHANNELS,
+  type AddInstructorNoteInput,
   type AppInfo,
   type ClearContentRootInput,
   type ConfigureContentRootInput,
@@ -29,6 +30,7 @@ import {
   saveTrainingMetadata
 } from "./trainingController";
 import {
+  addCurrentStepNote,
   complete,
   nextStep,
   pause,
@@ -156,6 +158,9 @@ void app.whenReady().then(() => {
   );
   ipcMain.handle(IPC_CHANNELS.runReleaseEvidenceStage, (_event, input: ReleaseEvidenceStageInput) =>
     toResult(() => releaseCurrentEvidenceStage(input.evidenceStageId))
+  );
+  ipcMain.handle(IPC_CHANNELS.runAddNote, (_event, input: AddInstructorNoteInput) =>
+    toResult(() => addCurrentStepNote(input.text))
   );
   ipcMain.handle(IPC_CHANNELS.runComplete, () => toResult(() => complete()));
 

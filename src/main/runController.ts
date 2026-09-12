@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   ACTIVE_RUN_POINTER_SCHEMA_VERSION,
   activateStep,
+  addInstructorNote,
   clearActiveRunPointer,
   completeRun,
   createSessionRun,
@@ -216,6 +217,27 @@ export async function releaseCurrentEvidenceStage(evidenceStageId: string): Prom
       throw new SessionEngineError("No active Step to release evidence for");
     }
     return releaseEvidenceStage(run, session, currentStepId, evidenceStageId);
+  });
+}
+
+/**
+ * Adds one Step-scoped instructor note to the CURRENT active Step - the renderer
+ * sends only the note text; main generates the note id, timestamp, and resolves
+ * the current active Step, exactly like releaseCurrentEvidenceStage restricts
+ * evidence release to the current Step only.
+ */
+export async function addCurrentStepNote(text: string): Promise<InstructorRunContext> {
+  return mutate((run, session, now) => {
+    const currentStepId = getActiveStepId(run);
+    if (!currentStepId) {
+      throw new SessionEngineError("No active Step to add a note to");
+    }
+    return addInstructorNote(run, session, {
+      stepId: currentStepId,
+      noteId: `note-${randomUUID()}`,
+      timestamp: now,
+      text
+    });
   });
 }
 

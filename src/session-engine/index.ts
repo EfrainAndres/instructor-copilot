@@ -17,6 +17,7 @@ export * from "./run/timing";
 export { loadSessionRun, saveSessionRun } from "./run/persistence";
 export * from "./run/activeRunPointer";
 export { validateSessionRunRecoveryCompatibility } from "./run/recoveryCompatibility";
+export * from "./run/report";
 
 export { collectRequiredContentRootIds } from "./model/contentRoots";
 export { resolveWithinRoot } from "./resources/pathContainment";

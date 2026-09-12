@@ -126,6 +126,13 @@ interface InstructorNote {
   timestamp: string;              // ISO
   text: string;
 }
+// Notes are Step-scoped run-time history, added only via the current active
+// Step (Phase 7): main generates id/timestamp/stepId, never the renderer. No
+// edit/delete in the MVP. `validateSessionRunSemantics` enforces id uniqueness
+// within the run, runId/sessionId consistency, that stepId exists among the
+// run's own StepRuns, and that timestamp falls within [startedAt, completedAt]
+// once the run is completed - the same "structurally impossible state is
+// rejected everywhere" posture as the timing-interval checks above.
 
 interface TrainingRegistration {
   trainingId: Id;
@@ -158,6 +165,9 @@ Slugs (`postman-demo`, `session-1`) for Training/Session/Step/Resource/CommandAc
 - **Authoring data** (`Training`, `Session`, `Step` and everything nested in `Step`) is persisted in the Training's own JSON files, edited via the Session Editor.
 - **Run state** (`SessionRun`, `StepRun`, `InstructorNote`) is persisted separately in `~/.instructor-copilot/runs/<runId>.json` — it must survive independently of the authored Session content evolving later, which is why `SessionRun` carries a minimal Session snapshot (title/planned duration) and each `StepRun` carries its own Step snapshot (title/type/planned duration/order) rather than re-reading the live `Session`/`Step`.
 - **Timers and drift** (session elapsed, step elapsed, schedule drift) are **not persisted as ticking state** — they're computed deterministically at any moment from `StepRun.activeIntervals` / `SessionRun.pauseIntervals` and each `StepRun`'s `plannedDurationMinutesSnapshot`. Only interval timestamps are persisted; the countdown itself is a pure function of "now." Revisiting a prior Step (Previous) opens a new interval on its existing `StepRun` rather than mutating `startedAt`, so time spent elsewhere is never counted twice; pausing the session opens an interval in `SessionRun.pauseIntervals`, which reporting subtracts from elapsed/drift math.
+
+## Run Report (Phase 7)
+`buildRunReport(run: SessionRun)` is a pure function that rejects an incomplete run and otherwise derives its entire output from `SessionRun`'s own snapshots/intervals/notes - it never reads the current authored `Session`/`Step`, so editing the Session after a run completes can never change that run's report. Per-Step status is one of `on_time` / `over` / `under` (derived from `actual - planned`, normalized only for floating-point noise below `1e-9` - no ±30s/±1min "close enough" tolerance), `skipped` (the StepRun's *final* status is `"skipped"` - a Step that was skipped and later revisited/finished reports its real timing status instead), or `not_reached` (the StepRun's final status is still `"pending"` because the run completed before ever visiting it - genuinely distinct from `skipped`). Steps are reported in `stepOrderSnapshot` order and notes are grouped by `stepId` and sorted chronologically, both from a sorted copy - `SessionRun.stepRuns`/`SessionRun.notes` themselves are never mutated.
 
 ## Active Run Recovery (Phase 6B)
 `ActiveRunPointer` is written only when a run starts (after the `SessionRun` itself is saved) and cleared only when a run completes; it is the single source of truth for "is there a run to recover," never a directory scan over `runs/`. Recovering it requires the pointed-to `SessionRun` to already be paused — a clean-shutdown `before-quit` handler guarantees this for a normal quit by pausing any incomplete run first — and requires the recovered run to still be structurally compatible with its authored `Session` (same Step count/order/ids/titles/types/durations, same checklist/evidence-stage id sets). An incomplete-but-unpaused pointed run (a crash, not a clean quit) is rejected rather than recovered, since there is no safe way to attribute the offline time.

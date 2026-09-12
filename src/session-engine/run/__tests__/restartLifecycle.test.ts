@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Session } from "../../model/schema";
 import {
   activateStep,
+  addInstructorNote,
   completeRun,
   createSessionRun,
   isRunPaused,
@@ -15,6 +16,7 @@ import {
   setChecklistItem
 } from "../engine";
 import { loadSessionRun, saveSessionRun } from "../persistence";
+import { buildRunReport } from "../report";
 import { sessionActiveElapsedMinutes, stepActualDurationMinutes } from "../timing";
 
 const T0 = "2026-09-11T10:00:00.000Z"; // Step A activates
@@ -162,5 +164,51 @@ describe("navigation revisit after activating a different Step, then shutdown", 
     const suspended = prepareRunForShutdown(run, "2026-09-11T10:10:00.000Z");
     expect(suspended.stepRuns.find((sr) => sr.stepId === "b")!.status).toBe("active");
     expect(suspended.stepRuns.find((sr) => sr.stepId === "a")!.status).toBe("done");
+  });
+});
+
+describe("Phase 7: instructor notes survive clean-restart recovery", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "instructor-copilot-notes-restart-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("keeps note 1 through shutdown/reload, then a note added after recovery joins it in the Run Report", async () => {
+    const session1 = session();
+
+    // Step A: take a note, release evidence.
+    let run = newRun(session1);
+    run = addInstructorNote(run, session1, { stepId: "a", noteId: "note-1", timestamp: T0, text: "note 1" });
+    run = releaseEvidenceStage(run, session1, "a", "ev1");
+
+    // Clean shutdown while Step A is still active.
+    run = prepareRunForShutdown(run, SHUTDOWN);
+    await saveSessionRun(tempDir, run);
+
+    // Restart: fresh load, still paused - note 1 must still be present.
+    const recovered = await loadSessionRun(tempDir, run.id);
+    expect(isRunPaused(recovered)).toBe(true);
+    expect(recovered.notes).toEqual(run.notes);
+    expect(recovered.notes.find((n) => n.id === "note-1")?.text).toBe("note 1");
+
+    // Add note 2, resume, complete.
+    let resumedRun = addInstructorNote(recovered, session1, {
+      stepId: "a",
+      noteId: "note-2",
+      timestamp: RESTART_CHECK,
+      text: "note 2"
+    });
+    resumedRun = resumeRun(resumedRun, RESUME_AT);
+    const completed = completeRun(resumedRun, "2026-09-11T10:35:00.000Z");
+
+    const report = buildRunReport(completed);
+    const stepAReport = report.steps.find((s) => s.stepId === "a")!;
+    expect(stepAReport.notes.map((n) => n.id)).toEqual(["note-1", "note-2"]);
+    expect(stepAReport.notes.map((n) => n.text)).toEqual(["note 1", "note 2"]);
   });
 });
