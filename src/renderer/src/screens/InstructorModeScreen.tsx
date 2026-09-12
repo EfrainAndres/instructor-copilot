@@ -2,18 +2,7 @@ import { useEffect, useRef, useState, type JSX } from "react";
 import type { InstructorRunContext, IpcResult } from "../../../shared/ipc";
 import { deriveInstructorModeState } from "../lib/instructorModeState";
 import { formatMinutesAsClock, formatScheduleDelta } from "../lib/timeFormat";
-import { appendWithCap } from "../lib/commandOutputBuffer";
-
-interface CommandExecutionState {
-  executionId: string;
-  label: string;
-  stdout: string;
-  stderr: string;
-  status: "running" | "completed";
-  exitCode?: number | null;
-  signal?: string | null;
-  error?: string;
-}
+import { reduceCommandExecution, type CommandExecutionState } from "../lib/commandExecutionState";
 
 interface InstructorModeScreenProps {
   context: InstructorRunContext;
@@ -35,27 +24,27 @@ export function InstructorModeScreen({
   const [busy, setBusy] = useState(false);
   const [commandExecution, setCommandExecution] = useState<CommandExecutionState | null>(null);
   const [commandStarting, setCommandStarting] = useState(false);
+  // Tracks the latest known executionId synchronously (independent of React's render
+  // cycle) so listeners registered once on mount can filter events for whichever
+  // execution is current, regardless of which source (started event vs. invoke
+  // response) learns of a new executionId first.
   const currentExecutionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const unsubscribeStarted = window.instructorCopilot.command.onStarted((event) => {
+      currentExecutionIdRef.current = event.executionId;
+      setCommandExecution((prev) => reduceCommandExecution(prev, { type: "started", ...event }));
+    });
     const unsubscribeOutput = window.instructorCopilot.command.onOutput((event) => {
       if (event.executionId !== currentExecutionIdRef.current) return;
-      setCommandExecution((prev) => {
-        if (!prev || prev.executionId !== event.executionId) return prev;
-        return event.stream === "stdout"
-          ? { ...prev, stdout: appendWithCap(prev.stdout, event.text) }
-          : { ...prev, stderr: appendWithCap(prev.stderr, event.text) };
-      });
+      setCommandExecution((prev) => reduceCommandExecution(prev, { type: "output", ...event }));
     });
     const unsubscribeCompleted = window.instructorCopilot.command.onCompleted((event) => {
       if (event.executionId !== currentExecutionIdRef.current) return;
-      setCommandExecution((prev) =>
-        prev && prev.executionId === event.executionId
-          ? { ...prev, status: "completed", exitCode: event.exitCode, signal: event.signal, error: event.error }
-          : prev
-      );
+      setCommandExecution((prev) => reduceCommandExecution(prev, { type: "completed", ...event }));
     });
     return () => {
+      unsubscribeStarted();
       unsubscribeOutput();
       unsubscribeCompleted();
     };
@@ -135,14 +124,18 @@ export function InstructorModeScreen({
         return;
       }
       const executionId = result.value.executionId!;
+      // Idempotent: if the one-way "started" event already initialized state for
+      // this executionId (the normal, fast path), this is a no-op that preserves
+      // any output accumulated in the meantime. If this invoke response instead
+      // resolves first for any reason, it initializes state here instead.
       currentExecutionIdRef.current = executionId;
-      setCommandExecution({
-        executionId,
-        label: result.value.label ?? commandId,
-        stdout: "",
-        stderr: "",
-        status: "running"
-      });
+      setCommandExecution((prev) =>
+        reduceCommandExecution(prev, {
+          type: "started",
+          executionId,
+          label: result.value.label ?? commandId
+        })
+      );
     } finally {
       setCommandStarting(false);
     }

@@ -28,11 +28,17 @@ export function runCommandProcess(plan: CommandExecutionPlan, callbacks: Command
     callbacks.onCompleted(result);
   }
 
-  const child = spawn(plan.executable, plan.args, {
-    cwd: plan.cwd,
-    shell: false,
-    windowsHide: true
-  });
+  let child;
+  try {
+    child = spawn(plan.executable, plan.args, {
+      cwd: plan.cwd,
+      shell: false,
+      windowsHide: true
+    });
+  } catch (error) {
+    complete({ exitCode: null, signal: null, error: error instanceof Error ? error.message : String(error) });
+    return;
+  }
 
   child.stdout.setEncoding("utf-8");
   child.stderr.setEncoding("utf-8");

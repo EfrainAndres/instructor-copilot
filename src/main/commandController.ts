@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { dialog, type BrowserWindow, type WebContents } from "electron";
 import { buildCommandExecutionPlan, resolveCurrentStepCommand, SessionEngineError, type CommandAction } from "../session-engine";
-import { IPC_CHANNELS, type CommandCompletedEvent, type CommandOutputEvent, type CommandStartResult } from "../shared/ipc";
+import {
+  IPC_CHANNELS,
+  type CommandCompletedEvent,
+  type CommandOutputEvent,
+  type CommandStartedEvent,
+  type CommandStartResult
+} from "../shared/ipc";
 import { runCommandProcess } from "./commandProcess";
 import { getCurrentActiveStepId, requireActiveRunTrainingId, requireActiveSession } from "./runController";
 import { resolveContentRootPathForTraining } from "./trainingController";
@@ -79,6 +85,13 @@ export async function runCurrentStepCommand(
 
   const executionId = `command-${randomUUID()}`;
   runningExecutionId = executionId;
+
+  // Sent before spawning so the renderer can establish execution identity ahead
+  // of any possible stdout/stderr/completion event - a very fast command must
+  // never have its early output discarded for arriving before the invoke
+  // response that also carries this executionId.
+  const startedEvent: CommandStartedEvent = { executionId, commandId: command.id, label: command.label };
+  safeSend(sender, IPC_CHANNELS.commandStarted, startedEvent);
 
   runCommandProcess(plan, {
     onStdout: (text) => {

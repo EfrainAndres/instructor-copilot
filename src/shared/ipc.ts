@@ -27,6 +27,7 @@ export const IPC_CHANNELS = {
   resourceOpenPresentation: "resource:open-presentation",
   resourceOpenCurrentStep: "resource:open-current-step-resource",
   commandRunCurrentStep: "command:run-current-step",
+  commandStarted: "command:started",
   commandOutput: "command:output",
   commandCompleted: "command:completed"
 } as const;
@@ -126,6 +127,19 @@ export interface CommandStartResult {
   executionId?: string;
   commandId?: string;
   label?: string;
+}
+
+/**
+ * Sent to the initiating renderer BEFORE spawning, establishing execution
+ * identity ahead of any stdout/stderr/completion event - so a very fast command
+ * can never emit output the renderer would otherwise discard for not yet
+ * knowing its executionId (which the runCurrentStep() invoke response also
+ * carries, but may resolve after this event in principle).
+ */
+export interface CommandStartedEvent {
+  executionId: string;
+  commandId: string;
+  label: string;
 }
 
 export interface CommandOutputEvent {

@@ -5,6 +5,7 @@ import {
   type ClearContentRootInput,
   type CommandCompletedEvent,
   type CommandOutputEvent,
+  type CommandStartedEvent,
   type CommandStartResult,
   type ConfigureContentRootInput,
   type ConfigureContentRootResult,
@@ -66,6 +67,11 @@ const instructorCopilotApi = {
   command: {
     runCurrentStep: (input: RunCurrentStepCommandInput): Promise<IpcResult<CommandStartResult>> =>
       ipcRenderer.invoke(IPC_CHANNELS.commandRunCurrentStep, input),
+    onStarted: (listener: (event: CommandStartedEvent) => void): (() => void) => {
+      const handler = (_ipcEvent: IpcRendererEvent, payload: CommandStartedEvent): void => listener(payload);
+      ipcRenderer.on(IPC_CHANNELS.commandStarted, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.commandStarted, handler);
+    },
     onOutput: (listener: (event: CommandOutputEvent) => void): (() => void) => {
       const handler = (_ipcEvent: IpcRendererEvent, payload: CommandOutputEvent): void => listener(payload);
       ipcRenderer.on(IPC_CHANNELS.commandOutput, handler);

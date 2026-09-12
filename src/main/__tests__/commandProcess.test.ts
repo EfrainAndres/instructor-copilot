@@ -117,4 +117,31 @@ describe("runCommandProcess", () => {
       expect.objectContaining({ shell: false, cwd: plan.cwd })
     );
   });
+
+  it("handles a synchronous spawn throw as one clean completion", async () => {
+    const plan: CommandExecutionPlan = {
+      executable: process.execPath,
+      args: [],
+      cwd: process.cwd()
+    };
+    vi.mocked(spawnMock).mockImplementationOnce(() => {
+      throw new Error("simulated synchronous spawn failure");
+    });
+
+    let completions = 0;
+    const result = await new Promise<{ exitCode: number | null; error?: string }>((resolvePromise) => {
+      runCommandProcess(plan, {
+        onStdout: () => undefined,
+        onStderr: () => undefined,
+        onCompleted: (completion) => {
+          completions += 1;
+          resolvePromise(completion);
+        }
+      });
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.error).toContain("simulated synchronous spawn failure");
+    expect(completions).toBe(1);
+  });
 });
