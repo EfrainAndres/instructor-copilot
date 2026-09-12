@@ -86,6 +86,24 @@ export function setContentRoot(
   return { ...settings, trainings };
 }
 
+/**
+ * Resolves a content root's absolute path for an explicitly given trainingId -
+ * never for "whichever Training is currently open." This is the pure lookup at
+ * the heart of binding a Resource to its own SessionRun.trainingId regardless of
+ * what else may be open elsewhere in the app; the caller is trusted to pass the
+ * correct trainingId (e.g. from the active SessionRun, not renderer input).
+ */
+export function findContentRootPath(settings: AppSettings, trainingId: string, rootId: string): string {
+  const registration = requireRegistration(settings, trainingId);
+  const absolutePath = registration.contentRoots[rootId];
+  if (!absolutePath) {
+    throw new SessionEngineError(
+      `Content root "${rootId}" is not configured for this Training. Configure it from Training Detail.`
+    );
+  }
+  return absolutePath;
+}
+
 export function clearContentRoot(settings: AppSettings, trainingId: string, rootId: string): AppSettings {
   requireRegistration(settings, trainingId);
   const trainings = settings.trainings.map((registration) => {

@@ -167,3 +167,13 @@ export function requireActiveSession(): Session {
 export function getCurrentActiveStepId(): string | undefined {
   return active ? getActiveStepId(active.run) : undefined;
 }
+
+/**
+ * The Training that owns the active run - resourceController must resolve
+ * content roots through this trainingId, never through whichever Training
+ * happens to be currently open/selected in trainingController, since those can
+ * diverge if the instructor switches Trainings while a run is still incomplete.
+ */
+export function requireActiveRunTrainingId(): string {
+  return requireActive().run.trainingId;
+}

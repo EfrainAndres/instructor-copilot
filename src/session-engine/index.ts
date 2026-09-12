@@ -24,5 +24,6 @@ export {
   saveAppSettings,
   upsertTrainingRegistration,
   setContentRoot,
-  clearContentRoot
+  clearContentRoot,
+  findContentRootPath
 } from "./persistence/appSettingsRepository";

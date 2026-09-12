@@ -1,15 +1,15 @@
 import { shell } from "electron";
 import { resolveWithinRoot, SessionEngineError, type Resource } from "../session-engine";
-import { getCurrentActiveStepId, requireActiveSession } from "./runController";
-import { resolveContentRootPath } from "./trainingController";
+import { getCurrentActiveStepId, requireActiveRunTrainingId, requireActiveSession } from "./runController";
+import { resolveContentRootPathForTraining } from "./trainingController";
 
-async function resolveFilesystemResourcePath(resource: Resource): Promise<string> {
+async function resolveFilesystemResourcePath(trainingId: string, resource: Resource): Promise<string> {
   if (!resource.root) {
     // Should be unreachable given the canonical schema invariant, but defends against
     // ever launching a filesystem-kind Resource with no root instead of failing loudly.
     throw new SessionEngineError(`Resource "${resource.label}" is missing a content root`);
   }
-  const absoluteRoot = await resolveContentRootPath(resource.root);
+  const absoluteRoot = await resolveContentRootPathForTraining(trainingId, resource.root);
   return resolveWithinRoot(absoluteRoot, resource.path, resource.label);
 }
 
@@ -39,12 +39,12 @@ async function openApplicationResource(resource: Resource): Promise<void> {
   }
 }
 
-async function openResource(resource: Resource): Promise<void> {
+async function openResource(trainingId: string, resource: Resource): Promise<void> {
   switch (resource.kind) {
     case "file":
     case "folder":
     case "presentation": {
-      const absolutePath = await resolveFilesystemResourcePath(resource);
+      const absolutePath = await resolveFilesystemResourcePath(trainingId, resource);
       const errorMessage = await shell.openPath(absolutePath);
       if (errorMessage) {
         throw new SessionEngineError(`Failed to open "${resource.label}": ${errorMessage}`);
@@ -63,15 +63,17 @@ async function openResource(resource: Resource): Promise<void> {
 
 export async function openPresentation(): Promise<null> {
   const session = requireActiveSession();
+  const trainingId = requireActiveRunTrainingId();
   if (!session.presentation) {
     throw new SessionEngineError("This Session has no presentation configured");
   }
-  await openResource(session.presentation);
+  await openResource(trainingId, session.presentation);
   return null;
 }
 
 export async function openCurrentStepResource(resourceId: string): Promise<null> {
   const session = requireActiveSession();
+  const trainingId = requireActiveRunTrainingId();
   const stepId = getCurrentActiveStepId();
   if (!stepId) {
     throw new SessionEngineError("No Step is currently active");
@@ -84,6 +86,6 @@ export async function openCurrentStepResource(resourceId: string): Promise<null>
   if (!resource) {
     throw new SessionEngineError(`Resource "${resourceId}" does not exist on the current Step`);
   }
-  await openResource(resource);
+  await openResource(trainingId, resource);
   return null;
 }

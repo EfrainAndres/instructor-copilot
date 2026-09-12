@@ -2,6 +2,7 @@ import { dialog, type BrowserWindow } from "electron";
 import {
   clearContentRoot,
   collectRequiredContentRootIds,
+  findContentRootPath,
   loadOrCreateAppSettings,
   loadTraining,
   loadTrainingBundle,
@@ -202,23 +203,15 @@ export async function clearContentRootForActiveTraining(rootId: string): Promise
 }
 
 /**
- * Resolves a logical content-root id to its configured absolute path for the
- * currently active Training. Used only by resourceController - the absolute
- * path itself never leaves main.
+ * Resolves a logical content-root id to its configured absolute path for an
+ * explicitly given, trusted trainingId - never for "whichever Training happens
+ * to be currently open." Callers (resourceController) must pass the trainingId
+ * the authored Resource actually belongs to (SessionRun.trainingId), so a
+ * Resource is bound to its own Training's registration even if a different
+ * Training has since been opened elsewhere in the app. Used only by
+ * resourceController - the absolute path itself never leaves main.
  */
-export async function resolveContentRootPath(rootId: string): Promise<string> {
-  const root = requireActiveTrainingRoot();
-  const training = await loadTraining(root);
-
+export async function resolveContentRootPathForTraining(trainingId: string, rootId: string): Promise<string> {
   const settings = await loadOrCreateAppSettings(getAppDataRoot());
-  const registration = settings.trainings.find((candidate) => candidate.trainingId === training.id);
-  const absolutePath = registration?.contentRoots[rootId];
-
-  if (!absolutePath) {
-    throw new SessionEngineError(
-      `Content root "${rootId}" is not configured for this Training. Configure it from Training Detail.`
-    );
-  }
-
-  return absolutePath;
+  return findContentRootPath(settings, trainingId, rootId);
 }
