@@ -43,6 +43,7 @@ import {
 import { openCurrentStepResource, openPresentation } from "./resourceController";
 import { runCurrentStepCommand } from "./commandController";
 import { restoreActiveRunOnStartup } from "./recoveryController";
+import { createQuitCoordinator } from "./quitCoordinator";
 
 function getAppInfo(): AppInfo {
   return {
@@ -193,22 +194,13 @@ app.on("window-all-closed", () => {
 });
 
 // Electron's "before-quit" fires synchronously, but suspending the active run
-// is async. First call: prevent the quit, await shutdown preparation, then quit
-// again. Second call (quitPreparationComplete already true): let it through -
-// this never recurses more than once.
-let quitPreparationComplete = false;
+// is async, and it can fire more than once while that preparation is still
+// pending. The coordinator owns exactly one preparation attempt: every event
+// while it's running stays prevented and joins that same attempt; only once
+// it settles does it call app.quit(), and the following before-quit then
+// passes through normally.
+const handleBeforeQuit = createQuitCoordinator(prepareActiveRunForShutdown, () => app.quit());
 
 app.on("before-quit", (event) => {
-  if (quitPreparationComplete) {
-    return;
-  }
-  event.preventDefault();
-  void prepareActiveRunForShutdown()
-    .catch((error) => {
-      console.error("Failed to suspend the active run before quitting:", error);
-    })
-    .finally(() => {
-      quitPreparationComplete = true;
-      app.quit();
-    });
+  handleBeforeQuit(event);
 });

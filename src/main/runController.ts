@@ -46,6 +46,13 @@ let mutationInFlight = false;
 // write - it never itself rejects a concurrent call the way mutationInFlight does.
 let currentMutationSettled: Promise<unknown> = Promise.resolve();
 
+// Set synchronously the moment shutdown preparation begins (before any await),
+// so a mutation that starts after this point is rejected outright rather than
+// possibly racing the shutdown save. A mutation already in flight when this
+// flips is unaffected - it is allowed to finish, and shutdown waits for it via
+// currentMutationSettled.
+let shutdownRequested = false;
+
 function toPublicContext(context: ActiveRunContext): InstructorRunContext {
   return { run: context.run, session: context.session };
 }
@@ -58,6 +65,9 @@ function requireActive(): ActiveRunContext {
 }
 
 async function withMutationGuard<T>(operation: () => Promise<T>): Promise<T> {
+  if (shutdownRequested) {
+    throw new SessionEngineError("The application is preparing to quit.");
+  }
   if (mutationInFlight) {
     throw new SessionEngineError("Another run update is already in progress");
   }
@@ -228,25 +238,16 @@ export function requireActiveRunTrainingId(): string {
   return requireActive().run.trainingId;
 }
 
-let shutdownPreparing = false;
+// Cached in-flight preparation Promise. Once set, every caller (repeated
+// before-quit events included) joins this SAME Promise rather than each
+// independently deciding "nothing to do" while the real save is still pending.
+let shutdownPreparationPromise: Promise<void> | null = null;
 
-/**
- * Suspends the active run before the app quits, so it can never be left with an
- * open, unpaused Step interval. Waits for whatever mutation is currently running
- * to settle first, rather than racing it with a second concurrent write.
- *
- * - No active run, or the active run is already completed: no-op.
- * - The active run is already paused: no-op - its persisted state is already
- *   authoritative and correct.
- * - Otherwise: pauses it (opening a pause interval that intentionally spans the
- *   offline period) and persists that before updating in-memory state.
- */
-export async function prepareActiveRunForShutdown(): Promise<void> {
-  if (shutdownPreparing) {
-    return;
-  }
-  shutdownPreparing = true;
-
+async function performShutdownPreparation(): Promise<void> {
+  // Let whatever mutation was already in flight when shutdown was requested
+  // finish and persist normally; no NEW mutation can have started after this
+  // point because shutdownRequested is already true (set synchronously by the
+  // caller below, before this async body runs any await).
   await currentMutationSettled;
 
   if (!active) {
@@ -265,10 +266,39 @@ export async function prepareActiveRunForShutdown(): Promise<void> {
 }
 
 /**
+ * Suspends the active run before the app quits, so it can never be left with an
+ * open, unpaused Step interval.
+ *
+ * - No active run, or the active run is already completed: no-op.
+ * - The active run is already paused: no-op - its persisted state is already
+ *   authoritative and correct.
+ * - Otherwise: pauses it (opening a pause interval that intentionally spans the
+ *   offline period) and persists that before updating in-memory state.
+ *
+ * Joinable: every call while preparation is still pending returns the SAME
+ * Promise, never an early/independent "nothing to do" result. Blocks new run
+ * mutations from starting the moment it's first called (see withMutationGuard)
+ * so a renderer-triggered mutation can never race the shutdown save.
+ */
+export function prepareActiveRunForShutdown(): Promise<void> {
+  if (shutdownPreparationPromise) {
+    return shutdownPreparationPromise;
+  }
+  shutdownRequested = true;
+  shutdownPreparationPromise = performShutdownPreparation();
+  return shutdownPreparationPromise;
+}
+
+/**
  * Main-internal only - restores the in-memory active run context after a
  * successful recovery validation. Never called from an IPC handler directly;
  * only from the startup recovery sequence once every check has passed.
  */
 export function setActiveRunAfterRecovery(run: SessionRun, session: Session): void {
   active = { run, session };
+}
+
+/** Main-internal only - a read-only snapshot of the active run, for tests. */
+export function getActiveRunSnapshot(): SessionRun | undefined {
+  return active?.run;
 }
