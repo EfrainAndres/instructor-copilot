@@ -57,6 +57,16 @@ export function requireActiveTrainingRoot(): string {
 }
 
 /**
+ * Main-internal only - restores the active Training root after a successful
+ * run-recovery validation, to the definitionRoot registered for the recovered
+ * run's own trainingId (a fresh process never has a Training "already open" to
+ * fall back on). Never exposed through IPC; no absolute path ever crosses it.
+ */
+export function setActiveTrainingRootForRecovery(definitionRoot: string): void {
+  activeTrainingRoot = definitionRoot;
+}
+
+/**
  * Registers (or refreshes) this Training's machine-local definitionRoot in
  * AppSettings. Only called after the Training itself has been successfully
  * opened/created; refreshing preserves any content roots already configured.

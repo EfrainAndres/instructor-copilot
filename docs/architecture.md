@@ -31,10 +31,19 @@ Instructor Mode supports Next, Previous, Skip, and Pause/Resume, without letting
 
 **Phase 4A implementation notes:** Next prefers a Step's explicit `nextStepId`, falling back to the following Step in authored `Session.steps` order; Previous always uses the immediately preceding Step in authored `Session.steps` order (ignoring `nextStepId`) — there is no separate navigation-history stack. The live schedule delta for the current Step is `sessionActiveElapsed - plannedCheckpoint`, where `plannedCheckpoint` is the sum of `plannedDurationMinutesSnapshot` for every Step from index 0 through the current Step's index, inclusive; negative means at/ahead of schedule, positive means behind.
 
+## Active Run Recovery and Clean-Restart Survival (implemented in Phase 6B)
+Instructor Copilot supports recovering a live, incomplete run across a **clean application restart** — quitting the app while a run is paused-or-about-to-be-paused, then relaunching. It explicitly does **not** promise correct recovery after a crash, `kill -9`, power loss, or any other termination that skips the app's own shutdown handling.
+
+- `~/.instructor-copilot/active-run.json` holds a minimal, independently-versioned pointer (`{schemaVersion, runId}` only — never a Training/Session path, content root, or timing data). It is the **only** source of recovery candidates; recovery never scans `runs/` or picks a "latest incomplete" file. It is written only when a run starts (after the SessionRun itself is persisted) and cleared only when a run completes.
+- On quit, an async, reentrancy-guarded `before-quit` handler suspends the active run if it is incomplete and not already paused — this opens a `pauseInterval` spanning the downtime and persists it — before allowing the app to actually terminate.
+- On startup, the renderer calls a single `run.restore()` capability. It loads the pointer, loads exactly that SessionRun, and requires it to be already paused; an incomplete-but-unpaused run (the crash case) is rejected with a clear message rather than silently recovered using the current time, since that would corrupt its timing. A pointer to an already-completed run is treated as stale, cleared, and produces no recovery. Once the run passes that check, its Training/Session are re-derived through the registered `TrainingRegistration` and validated for full structural compatibility (same Step count/order/ids/titles/types/durations, same checklist and evidence-stage ids) before anything is restored — this guards against recovering a run against a Session that has since been edited.
+- A recovered run stays paused; the instructor must explicitly click Resume, which closes the shutdown-spanning pause interval and opens a fresh one, so time spent offline is never counted as active.
+
 ## Local Persistence Approach
 Plain JSON files, no SQLite/database for MVP:
 - `~/.instructor-copilot/settings.json` — app settings, including one `TrainingRegistration` per imported Training (its definition path plus its own `contentRoots` mapping — named root → absolute path; see Content Roots below).
 - `~/.instructor-copilot/runs/<runId>.json` — SessionRun history (active/pause intervals, checklist state, notes, evidence state, per-step authoring snapshots) for Run Reports.
+- `~/.instructor-copilot/active-run.json` — the active-run pointer described above (Phase 6B).
 
 Each Training itself is a self-contained directory the app *references*, not a database record:
 ```

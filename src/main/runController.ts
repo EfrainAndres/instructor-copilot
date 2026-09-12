@@ -1,15 +1,19 @@
 import { randomUUID } from "node:crypto";
 import {
+  ACTIVE_RUN_POINTER_SCHEMA_VERSION,
   activateStep,
+  clearActiveRunPointer,
   completeRun,
   createSessionRun,
   getActiveStepId,
   loadTrainingBundle,
   pauseRun,
+  prepareRunForShutdown,
   releaseEvidenceStage,
   resolveNextStepId,
   resolvePreviousStepId,
   resumeRun,
+  saveActiveRunPointer,
   saveSessionRun,
   SessionEngineError,
   setChecklistItem,
@@ -37,6 +41,11 @@ let active: ActiveRunContext | null = null;
 // race two concurrent writes to the same run file.
 let mutationInFlight = false;
 
+// Tracks whatever mutation is currently running so shutdown suspension can wait
+// for it to settle rather than racing it with a second concurrent SessionRun
+// write - it never itself rejects a concurrent call the way mutationInFlight does.
+let currentMutationSettled: Promise<unknown> = Promise.resolve();
+
 function toPublicContext(context: ActiveRunContext): InstructorRunContext {
   return { run: context.run, session: context.session };
 }
@@ -53,20 +62,24 @@ async function withMutationGuard<T>(operation: () => Promise<T>): Promise<T> {
     throw new SessionEngineError("Another run update is already in progress");
   }
   mutationInFlight = true;
-  try {
-    return await operation();
-  } finally {
+  const settlement = operation().finally(() => {
     mutationInFlight = false;
-  }
+  });
+  currentMutationSettled = settlement.catch(() => undefined);
+  return settlement;
 }
 
 /**
  * Runs one transition against the active run, persists the result, and only then
  * commits it as the new active state - if persistence fails, the prior in-memory
  * run is left untouched rather than pretending the transition succeeded.
+ * `afterCommit` runs after the commit but its failure never rolls the commit back
+ * (used for pointer cleanup on completion, which must not undo a successful
+ * completion merely because the cleanup step failed).
  */
 async function mutate(
-  transition: (run: SessionRun, session: Session, now: string) => SessionRun
+  transition: (run: SessionRun, session: Session, now: string) => SessionRun,
+  afterCommit?: (nextRun: SessionRun) => Promise<void>
 ): Promise<InstructorRunContext> {
   return withMutationGuard(async () => {
     const current = requireActive();
@@ -74,6 +87,13 @@ async function mutate(
     const nextRun = transition(current.run, current.session, now);
     await saveSessionRun(getAppDataRoot(), nextRun);
     active = { ...current, run: nextRun };
+    if (afterCommit) {
+      try {
+        await afterCommit(nextRun);
+      } catch (error) {
+        console.error("Post-commit run hook failed:", error);
+      }
+    }
     return toPublicContext(active);
   });
 }
@@ -99,7 +119,13 @@ export async function startRun(sessionId: string): Promise<InstructorRunContext>
       startedAt: now
     });
 
-    await saveSessionRun(getAppDataRoot(), run);
+    const appDataRoot = getAppDataRoot();
+    await saveSessionRun(appDataRoot, run);
+    // The pointer must exist before this run becomes recoverable/active in memory;
+    // if saving it fails, the run is never established as active (an orphaned run
+    // file in that rare case is acceptable, unscanned history).
+    await saveActiveRunPointer(appDataRoot, { schemaVersion: ACTIVE_RUN_POINTER_SCHEMA_VERSION, runId: run.id });
+
     active = { run, session };
     return toPublicContext(active);
   });
@@ -153,7 +179,15 @@ export async function resume(): Promise<InstructorRunContext> {
 }
 
 export async function complete(): Promise<InstructorRunContext> {
-  return mutate((run, _session, now) => completeRun(run, now));
+  return mutate(
+    (run, _session, now) => completeRun(run, now),
+    async () => {
+      // The completed run file is authoritative regardless of whether this
+      // cleanup succeeds; a stale pointer to a completed run is handled as a
+      // non-fatal, ignorable case during future recovery.
+      await clearActiveRunPointer(getAppDataRoot());
+    }
+  );
 }
 
 export async function setRunChecklistItem(stepId: string, itemId: string, value: boolean): Promise<InstructorRunContext> {
@@ -192,4 +226,49 @@ export function getCurrentActiveStepId(): string | undefined {
  */
 export function requireActiveRunTrainingId(): string {
   return requireActive().run.trainingId;
+}
+
+let shutdownPreparing = false;
+
+/**
+ * Suspends the active run before the app quits, so it can never be left with an
+ * open, unpaused Step interval. Waits for whatever mutation is currently running
+ * to settle first, rather than racing it with a second concurrent write.
+ *
+ * - No active run, or the active run is already completed: no-op.
+ * - The active run is already paused: no-op - its persisted state is already
+ *   authoritative and correct.
+ * - Otherwise: pauses it (opening a pause interval that intentionally spans the
+ *   offline period) and persists that before updating in-memory state.
+ */
+export async function prepareActiveRunForShutdown(): Promise<void> {
+  if (shutdownPreparing) {
+    return;
+  }
+  shutdownPreparing = true;
+
+  await currentMutationSettled;
+
+  if (!active) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const suspended = prepareRunForShutdown(active.run, now);
+  if (suspended === active.run) {
+    // Already completed or already paused: existing persisted state is authoritative.
+    return;
+  }
+
+  await saveSessionRun(getAppDataRoot(), suspended);
+  active = { ...active, run: suspended };
+}
+
+/**
+ * Main-internal only - restores the in-memory active run context after a
+ * successful recovery validation. Never called from an IPC handler directly;
+ * only from the startup recovery sequence once every check has passed.
+ */
+export function setActiveRunAfterRecovery(run: SessionRun, session: Session): void {
+  active = { run, session };
 }

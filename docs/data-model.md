@@ -138,6 +138,14 @@ interface AppSettings {
   trainings: TrainingRegistration[]; // one entry per imported Training; each owns its own content-root names
   // future: theme, default confirmation behavior, etc.
 }
+
+// ~/.instructor-copilot/active-run.json (Phase 6B) — the sole recovery pointer.
+// Independently versioned from every other schema; deliberately minimal so it
+// never itself needs Training/Session/content-root/timing data to stay valid.
+interface ActiveRunPointer {
+  schemaVersion: number;
+  runId: Id;
+}
 ```
 
 ## IDs
@@ -151,8 +159,11 @@ Slugs (`postman-demo`, `session-1`) for Training/Session/Step/Resource/CommandAc
 - **Run state** (`SessionRun`, `StepRun`, `InstructorNote`) is persisted separately in `~/.instructor-copilot/runs/<runId>.json` — it must survive independently of the authored Session content evolving later, which is why `SessionRun` carries a minimal Session snapshot (title/planned duration) and each `StepRun` carries its own Step snapshot (title/type/planned duration/order) rather than re-reading the live `Session`/`Step`.
 - **Timers and drift** (session elapsed, step elapsed, schedule drift) are **not persisted as ticking state** — they're computed deterministically at any moment from `StepRun.activeIntervals` / `SessionRun.pauseIntervals` and each `StepRun`'s `plannedDurationMinutesSnapshot`. Only interval timestamps are persisted; the countdown itself is a pure function of "now." Revisiting a prior Step (Previous) opens a new interval on its existing `StepRun` rather than mutating `startedAt`, so time spent elsewhere is never counted twice; pausing the session opens an interval in `SessionRun.pauseIntervals`, which reporting subtracts from elapsed/drift math.
 
+## Active Run Recovery (Phase 6B)
+`ActiveRunPointer` is written only when a run starts (after the `SessionRun` itself is saved) and cleared only when a run completes; it is the single source of truth for "is there a run to recover," never a directory scan over `runs/`. Recovering it requires the pointed-to `SessionRun` to already be paused — a clean-shutdown `before-quit` handler guarantees this for a normal quit by pausing any incomplete run first — and requires the recovered run to still be structurally compatible with its authored `Session` (same Step count/order/ids/titles/types/durations, same checklist/evidence-stage id sets). An incomplete-but-unpaused pointed run (a crash, not a clean quit) is rejected rather than recovered, since there is no safe way to attribute the offline time.
+
 ## Versioning / Schema Migration
-`Training`, `Session`, `AppSettings`, and `SessionRun` are each persisted as independent files that evolve on separate timelines and each carry their own `schemaVersion` integer — editing a Training doesn't touch its Sessions' version, and neither touches old run files. On load, main checks the version of whichever file it's reading and applies that file type's own migration function chain (`v1→v2`, `v2→v3`, …) before handing the object to the renderer — there is no shared/global schema version. `Step` does not carry its own version; it migrates as part of its owning `Session` file. Run Reports must tolerate a `StepRun` whose `stepId` no longer exists in the current `Session`, or a `SessionRun` whose `Session`/`Training` has since been edited or deleted entirely, by falling back to the snapshot fields (`sessionTitleSnapshot`/`plannedDurationMinutesSnapshot` on `SessionRun`; the Step-level snapshot fields on `StepRun`) — this is the normal case for historical accuracy, not an error path.
+`Training`, `Session`, `AppSettings`, `SessionRun`, and `ActiveRunPointer` are each persisted as independent files that evolve on separate timelines and each carry their own `schemaVersion` integer — editing a Training doesn't touch its Sessions' version, and neither touches old run files. On load, main checks the version of whichever file it's reading and applies that file type's own migration function chain (`v1→v2`, `v2→v3`, …) before handing the object to the renderer — there is no shared/global schema version. `Step` does not carry its own version; it migrates as part of its owning `Session` file. Run Reports must tolerate a `StepRun` whose `stepId` no longer exists in the current `Session`, or a `SessionRun` whose `Session`/`Training` has since been edited or deleted entirely, by falling back to the snapshot fields (`sessionTitleSnapshot`/`plannedDurationMinutesSnapshot` on `SessionRun`; the Step-level snapshot fields on `StepRun`) — this is the normal case for historical accuracy, not an error path.
 
 ## External Resource Path Strategy
 All `Resource.path` and `CommandAction.cwd` values are relative to a named content **root** (see `architecture.md` → Content Roots), not to an absolute path. Main resolves `root` via the current Training's `TrainingRegistration.contentRoots[root]` at open/run time, so root names are scoped per-Training and never collide across Trainings; nothing in `Training`/`Session`/`Step` JSON contains an absolute, machine-specific path, which is what keeps a Training definition portable independent of where its actual content lives on a given machine. `kind: "application"` and `kind: "url"` are the two `Resource` exceptions where `path` isn't a root-relative file — an OS application identifier and an absolute `http`/`https` URL respectively — so `root` is omitted for both.

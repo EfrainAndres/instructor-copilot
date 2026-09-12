@@ -12,6 +12,19 @@ export async function fileExists(file: string): Promise<boolean> {
   }
 }
 
+/** Deletes `file` if it exists; a no-op (not an error) if it's already absent. */
+export async function deleteFileIfPresent(file: string): Promise<void> {
+  try {
+    await unlink(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return;
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new SessionEngineError(`Failed to delete file: ${reason}`, file);
+  }
+}
+
 export async function readTextFile(file: string): Promise<string> {
   try {
     return await readFile(file, "utf-8");

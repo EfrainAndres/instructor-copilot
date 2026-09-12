@@ -9,6 +9,8 @@ interface InstructorModeScreenProps {
   context: InstructorRunContext;
   onContextUpdated: (context: InstructorRunContext) => void;
   onBackToTraining: () => void;
+  /** True only when this screen was entered via startup recovery, not a fresh Start Session. */
+  recovered?: boolean;
 }
 
 function formatStepType(type: string): string {
@@ -18,11 +20,15 @@ function formatStepType(type: string): string {
 export function InstructorModeScreen({
   context,
   onContextUpdated,
-  onBackToTraining
+  onBackToTraining,
+  recovered = false
 }: InstructorModeScreenProps): JSX.Element {
   const [nowIso, setNowIso] = useState(() => new Date().toISOString());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Seeded once from the `recovered` prop; not re-synced on prop changes since this
+  // banner is purely local UX state, not persisted.
+  const [showRecoveredBanner, setShowRecoveredBanner] = useState(recovered);
   const [commandExecution, setCommandExecution] = useState<CommandExecutionState | null>(null);
   const [commandStarting, setCommandStarting] = useState(false);
   // Tracks the latest known executionId synchronously (independent of React's render
@@ -61,6 +67,12 @@ export function InstructorModeScreen({
   }, [completedAt]);
 
   const derived = deriveInstructorModeState(context.session, context.run, nowIso);
+
+  // Auto-dismiss once the instructor explicitly resumes; a simple dismiss button
+  // also clears it immediately without waiting for Resume.
+  useEffect(() => {
+    if (!derived.paused) setShowRecoveredBanner(false);
+  }, [derived.paused]);
 
   async function handleAction(action: () => Promise<IpcResult<InstructorRunContext>>): Promise<void> {
     setError(null);
@@ -167,6 +179,15 @@ export function InstructorModeScreen({
   return (
     <main className="screen instructor-mode-screen">
       {derived.paused && <div className="im-paused-badge">PAUSED</div>}
+
+      {showRecoveredBanner && (
+        <div className="im-recovered-banner">
+          <span>Session recovered after restart. Review the current Step and press Resume when ready.</span>
+          <button type="button" onClick={() => setShowRecoveredBanner(false)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <header className="im-status-bar">
         <div className="im-status-title">{context.session.title}</div>

@@ -16,6 +16,7 @@ import {
   type IpcResult,
   type OpenCurrentStepResourceInput,
   type OpenOrCreateTrainingResult,
+  type RecoveredRunResult,
   type ReleaseEvidenceStageInput,
   type RunCurrentStepCommandInput,
   type SaveTrainingMetadataInput,
@@ -51,6 +52,7 @@ const instructorCopilotApi = {
   run: {
     start: (input: StartRunInput): Promise<IpcResult<InstructorRunContext>> =>
       ipcRenderer.invoke(IPC_CHANNELS.runStart, input),
+    restore: (): Promise<IpcResult<RecoveredRunResult | null>> => ipcRenderer.invoke(IPC_CHANNELS.runRestore),
     next: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runNext),
     previous: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runPrevious),
     skip: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runSkip),

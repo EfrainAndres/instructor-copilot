@@ -32,6 +32,7 @@ import {
   complete,
   nextStep,
   pause,
+  prepareActiveRunForShutdown,
   previousStep,
   releaseCurrentEvidenceStage,
   resume,
@@ -41,6 +42,7 @@ import {
 } from "./runController";
 import { openCurrentStepResource, openPresentation } from "./resourceController";
 import { runCurrentStepCommand } from "./commandController";
+import { restoreActiveRunOnStartup } from "./recoveryController";
 
 function getAppInfo(): AppInfo {
   return {
@@ -142,6 +144,7 @@ void app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.sessionSave, (_event, session: Session) => toResult(() => saveSessionData(session)));
 
   ipcMain.handle(IPC_CHANNELS.runStart, (_event, input: StartRunInput) => toResult(() => startRun(input.sessionId)));
+  ipcMain.handle(IPC_CHANNELS.runRestore, () => toResult(() => restoreActiveRunOnStartup()));
   ipcMain.handle(IPC_CHANNELS.runNext, () => toResult(() => nextStep()));
   ipcMain.handle(IPC_CHANNELS.runPrevious, () => toResult(() => previousStep()));
   ipcMain.handle(IPC_CHANNELS.runSkip, () => toResult(() => skipStep()));
@@ -187,4 +190,25 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+// Electron's "before-quit" fires synchronously, but suspending the active run
+// is async. First call: prevent the quit, await shutdown preparation, then quit
+// again. Second call (quitPreparationComplete already true): let it through -
+// this never recurses more than once.
+let quitPreparationComplete = false;
+
+app.on("before-quit", (event) => {
+  if (quitPreparationComplete) {
+    return;
+  }
+  event.preventDefault();
+  void prepareActiveRunForShutdown()
+    .catch((error) => {
+      console.error("Failed to suspend the active run before quitting:", error);
+    })
+    .finally(() => {
+      quitPreparationComplete = true;
+      app.quit();
+    });
 });

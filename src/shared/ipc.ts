@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   sessionCreate: "session:create",
   sessionSave: "session:save",
   runStart: "run:start",
+  runRestore: "run:restore",
   runNext: "run:next",
   runPrevious: "run:previous",
   runSkip: "run:skip",
@@ -91,6 +92,17 @@ export interface ReleaseEvidenceStageInput {
 export interface InstructorRunContext {
   run: SessionRun;
   session: Session;
+}
+
+/**
+ * Returned by run.restore() when a cleanly-suspended run was recovered: both the
+ * run context (for Instructor Mode) and the Training bundle (so "Back to
+ * Training" after completion works exactly as it would for a freshly opened
+ * Training). No definitionRoot/appDataRoot/content-root paths are ever included.
+ */
+export interface RecoveredRunResult {
+  context: InstructorRunContext;
+  bundle: TrainingBundle;
 }
 
 /**

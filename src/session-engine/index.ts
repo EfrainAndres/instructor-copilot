@@ -15,6 +15,8 @@ export * from "./run/schema";
 export * from "./run/engine";
 export * from "./run/timing";
 export { loadSessionRun, saveSessionRun } from "./run/persistence";
+export * from "./run/activeRunPointer";
+export { validateSessionRunRecoveryCompatibility } from "./run/recoveryCompatibility";
 
 export { collectRequiredContentRootIds } from "./model/contentRoots";
 export { resolveWithinRoot } from "./resources/pathContainment";

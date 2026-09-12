@@ -17,12 +17,41 @@ export function App(): JSX.Element {
   const [bundle, setBundle] = useState<TrainingBundle | null>(null);
   const [view, setView] = useState<View>({ name: "home" });
   const [runContext, setRunContext] = useState<InstructorRunContext | null>(null);
+  const [justRecovered, setJustRecovered] = useState(false);
+
+  const [bootstrapping, setBootstrapping] = useState(true);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
 
   useEffect(() => {
     window.instructorCopilot
       .getAppInfo()
       .then(setAppInfo)
       .catch(() => setAppInfo(null));
+  }, []);
+
+  // Checked exactly once at startup - never a filesystem scan; main resolves this
+  // purely from its own active-run pointer.
+  useEffect(() => {
+    let cancelled = false;
+    window.instructorCopilot
+      .run.restore()
+      .then((result) => {
+        if (cancelled) return;
+        if (!result.ok) {
+          setRecoveryError(result.error);
+        } else if (result.value) {
+          setBundle(result.value.bundle);
+          setRunContext(result.value.context);
+          setJustRecovered(true);
+          setView({ name: "instructorMode" });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBootstrapping(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function handleTrainingReady(nextBundle: TrainingBundle): void {
@@ -40,6 +69,7 @@ export function App(): JSX.Element {
 
   function handleRunStarted(context: InstructorRunContext): void {
     setRunContext(context);
+    setJustRecovered(false);
     setView({ name: "instructorMode" });
   }
 
@@ -50,6 +80,14 @@ export function App(): JSX.Element {
   function handleBackToTrainingFromRun(): void {
     setRunContext(null);
     setView({ name: "trainingDetail" });
+  }
+
+  if (bootstrapping) {
+    return (
+      <main className="screen bootstrap-screen">
+        <p>Loading…</p>
+      </main>
+    );
   }
 
   let content: JSX.Element;
@@ -88,6 +126,7 @@ export function App(): JSX.Element {
         context={runContext}
         onContextUpdated={handleRunContextUpdated}
         onBackToTraining={handleBackToTrainingFromRun}
+        recovered={justRecovered}
       />
     ) : (
       <TrainingDetailScreen
@@ -102,6 +141,7 @@ export function App(): JSX.Element {
 
   return (
     <>
+      {recoveryError && <p className="error-banner recovery-error">Recovery check failed: {recoveryError}</p>}
       {content}
       <footer className="app-footer">
         {appInfo ? `${appInfo.name} v${appInfo.version} · ${appInfo.platform}` : "Loading application info…"}

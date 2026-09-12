@@ -230,6 +230,22 @@ export function pauseRun(run: SessionRun, now: string): SessionRun {
   return finalizeAndValidate({ ...run, stepRuns, pauseIntervals });
 }
 
+/**
+ * Clean-shutdown suspension (Phase 6B): if `run` is already completed or already
+ * paused, returns it unchanged (a no-op, including reference equality so callers
+ * can skip persisting) - the existing persisted state is authoritative. Otherwise
+ * pauses it exactly like a manual Pause: this open pause interval intentionally
+ * spans however long the app stays closed, so a later resume's active-elapsed
+ * math naturally excludes that offline period. No new fields, no special
+ * "offline duration" concept - it reuses the existing interval model.
+ */
+export function prepareRunForShutdown(run: SessionRun, now: string): SessionRun {
+  if (run.completedAt || isRunPaused(run)) {
+    return run;
+  }
+  return pauseRun(run, now);
+}
+
 /** Closes the open pause interval and opens a fresh interval on the (still) active Step. */
 export function resumeRun(run: SessionRun, now: string): SessionRun {
   assertNotCompleted(run);
