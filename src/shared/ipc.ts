@@ -20,6 +20,7 @@ export const IPC_CHANNELS = {
   runPause: "run:pause",
   runResume: "run:resume",
   runSetChecklistItem: "run:set-checklist-item",
+  runReleaseEvidenceStage: "run:release-evidence-stage",
   runComplete: "run:complete",
   trainingGetContentRootStatus: "training:get-content-root-status",
   trainingConfigureContentRoot: "training:configure-content-root",
@@ -76,6 +77,10 @@ export interface SetChecklistItemInput {
   stepId: string;
   itemId: string;
   value: boolean;
+}
+
+export interface ReleaseEvidenceStageInput {
+  evidenceStageId: string;
 }
 
 /**

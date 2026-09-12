@@ -10,6 +10,7 @@ import {
   type CreateTrainingInput,
   type IpcResult,
   type OpenCurrentStepResourceInput,
+  type ReleaseEvidenceStageInput,
   type RunCurrentStepCommandInput,
   type SaveTrainingMetadataInput,
   type SetChecklistItemInput,
@@ -32,6 +33,7 @@ import {
   nextStep,
   pause,
   previousStep,
+  releaseCurrentEvidenceStage,
   resume,
   setRunChecklistItem,
   skipStep,
@@ -147,6 +149,9 @@ void app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.runResume, () => toResult(() => resume()));
   ipcMain.handle(IPC_CHANNELS.runSetChecklistItem, (_event, input: SetChecklistItemInput) =>
     toResult(() => setRunChecklistItem(input.stepId, input.itemId, input.value))
+  );
+  ipcMain.handle(IPC_CHANNELS.runReleaseEvidenceStage, (_event, input: ReleaseEvidenceStageInput) =>
+    toResult(() => releaseCurrentEvidenceStage(input.evidenceStageId))
   );
   ipcMain.handle(IPC_CHANNELS.runComplete, () => toResult(() => complete()));
 

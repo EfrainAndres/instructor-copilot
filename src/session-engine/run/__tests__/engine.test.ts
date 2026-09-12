@@ -10,6 +10,7 @@ import {
   getActiveStepRun,
   isRunPaused,
   pauseRun,
+  releaseEvidenceStage,
   resolveCurrentStepCommand,
   resolveNextStepId,
   resolvePreviousStepId,
@@ -324,6 +325,18 @@ describe("persistence", () => {
     expect(reloaded).toEqual(run);
   });
 
+  it("round-trips released evidence state through save and load exactly", async () => {
+    const session = sessionWithEvidence();
+    const run = releaseEvidenceStage(newRun(session), session, "a", "db");
+    await saveSessionRun(tempDir, run);
+    const reloaded = await loadSessionRun(tempDir, run.id);
+    expect(reloaded.stepRuns.find((sr) => sr.stepId === "a")!.evidenceState).toEqual({
+      http: "locked",
+      db: "released",
+      logs: "locked"
+    });
+  });
+
   it("rejects loading a SessionRun with an unsupported schema version", async () => {
     await mkdir(join(tempDir, "runs"), { recursive: true });
     const run = { ...newRun(twoStepSession()), schemaVersion: 999 };
@@ -454,5 +467,118 @@ describe("resolveCurrentStepCommand", () => {
   it("rejects when there is no current Step", () => {
     const session = sessionWithCommand();
     expect(() => resolveCurrentStepCommand(session, undefined, "reset-env")).toThrow(/No Step is currently active/);
+  });
+});
+
+function sessionWithEvidence(): Session {
+  return {
+    id: "session-1",
+    schemaVersion: 1,
+    trainingId: "training-1",
+    title: "Evidence Session",
+    plannedDurationMinutes: 10,
+    steps: [
+      {
+        id: "a",
+        type: "live_demo",
+        title: "Step A",
+        plannedDurationMinutes: 5,
+        evidenceStages: [
+          { id: "http", label: "HTTP response", order: 1, detail: "200 OK" },
+          { id: "db", label: "Database state", order: 2, detail: "Order persisted correctly." },
+          { id: "logs", label: "Logs", order: 3, detail: "No errors logged." }
+        ]
+      },
+      { id: "b", type: "closing", title: "Step B", plannedDurationMinutes: 5 }
+    ]
+  };
+}
+
+describe("releaseEvidenceStage", () => {
+  it("changes exactly one target stage to released, leaving the others locked", () => {
+    const session = sessionWithEvidence();
+    const run = releaseEvidenceStage(newRun(session), session, "a", "db");
+    const stepRun = run.stepRuns.find((sr) => sr.stepId === "a")!;
+    expect(stepRun.evidenceState).toEqual({ http: "locked", db: "released", logs: "locked" });
+  });
+
+  it("allows releasing stages out of authored/default order", () => {
+    const session = sessionWithEvidence();
+    let run = newRun(session);
+    run = releaseEvidenceStage(run, session, "a", "logs");
+    run = releaseEvidenceStage(run, session, "a", "http");
+    const stepRun = run.stepRuns.find((sr) => sr.stepId === "a")!;
+    expect(stepRun.evidenceState).toEqual({ http: "released", db: "locked", logs: "released" });
+  });
+
+  it("is idempotent when releasing an already released stage", () => {
+    const session = sessionWithEvidence();
+    let run = newRun(session);
+    run = releaseEvidenceStage(run, session, "a", "http");
+    expect(() => releaseEvidenceStage(run, session, "a", "http")).not.toThrow();
+    const again = releaseEvidenceStage(run, session, "a", "http");
+    expect(again.stepRuns.find((sr) => sr.stepId === "a")!.evidenceState.http).toBe("released");
+  });
+
+  it("rejects an unknown EvidenceStage id", () => {
+    const session = sessionWithEvidence();
+    expect(() => releaseEvidenceStage(newRun(session), session, "a", "does-not-exist")).toThrow(SessionEngineError);
+  });
+
+  it("rejects an EvidenceStage id that belongs to a different Step", () => {
+    const session: Session = {
+      ...sessionWithEvidence(),
+      steps: [
+        sessionWithEvidence().steps[0]!,
+        {
+          id: "b",
+          type: "closing",
+          title: "Step B",
+          plannedDurationMinutes: 5,
+          evidenceStages: [{ id: "other-stage", label: "Other", order: 1 }]
+        }
+      ]
+    };
+    expect(() => releaseEvidenceStage(newRun(session), session, "a", "other-stage")).toThrow(SessionEngineError);
+  });
+
+  it("succeeds while the run is paused without changing pause/timing state", () => {
+    const session = sessionWithEvidence();
+    const paused = pauseRun(newRun(session), T5);
+    const run = releaseEvidenceStage(paused, session, "a", "http");
+    expect(isRunPaused(run)).toBe(true);
+    expect(run.pauseIntervals).toEqual(paused.pauseIntervals);
+    expect(run.stepRuns.find((sr) => sr.stepId === "a")!.activeIntervals).toEqual(
+      paused.stepRuns.find((sr) => sr.stepId === "a")!.activeIntervals
+    );
+  });
+
+  it("rejects releasing evidence after the run is completed", () => {
+    const session = sessionWithEvidence();
+    const completed = completeRun(newRun(session), T5);
+    expect(() => releaseEvidenceStage(completed, session, "a", "http")).toThrow(/already completed/);
+  });
+
+  it("preserves released state across Step navigation/revisit", () => {
+    const session = sessionWithEvidence();
+    let run = newRun(session);
+    run = releaseEvidenceStage(run, session, "a", "db");
+    run = activateStep(run, "b", T5);
+    run = activateStep(run, "a", T6);
+    const stepRun = run.stepRuns.find((sr) => sr.stepId === "a")!;
+    expect(stepRun.evidenceState.db).toBe("released");
+    expect(stepRun.evidenceState.http).toBe("locked");
+  });
+
+  it("leaves other StepRuns, checklist, and timing untouched", () => {
+    const session = sessionWithEvidence();
+    const before = newRun(session);
+    const after = releaseEvidenceStage(before, session, "a", "http");
+    expect(after.stepRuns.find((sr) => sr.stepId === "b")).toEqual(before.stepRuns.find((sr) => sr.stepId === "b"));
+    const beforeA = before.stepRuns.find((sr) => sr.stepId === "a")!;
+    const afterA = after.stepRuns.find((sr) => sr.stepId === "a")!;
+    expect(afterA.checklistState).toEqual(beforeA.checklistState);
+    expect(afterA.activeIntervals).toEqual(beforeA.activeIntervals);
+    expect(afterA.status).toBe(beforeA.status);
   });
 });

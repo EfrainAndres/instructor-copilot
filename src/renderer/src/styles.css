@@ -610,3 +610,66 @@ button:disabled {
 .im-command-stderr {
   color: crimson;
 }
+
+.im-evidence-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.im-evidence-item {
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.im-evidence-item.locked {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.im-evidence-item.released {
+  border-color: seagreen;
+}
+
+.im-evidence-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.im-evidence-order {
+  color: gray;
+}
+
+.im-evidence-label {
+  font-weight: 600;
+  flex: 1;
+}
+
+.im-evidence-status {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.im-evidence-item.locked .im-evidence-status {
+  color: gray;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.im-evidence-item.released .im-evidence-status {
+  color: white;
+  background: seagreen;
+}
+
+.im-evidence-detail {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem 0.6rem;
+  background: color-mix(in srgb, seagreen 10%, transparent);
+  border-radius: 0.3rem;
+}

@@ -6,6 +6,7 @@ import {
   getActiveStepId,
   loadTrainingBundle,
   pauseRun,
+  releaseEvidenceStage,
   resolveNextStepId,
   resolvePreviousStepId,
   resumeRun,
@@ -157,6 +158,21 @@ export async function complete(): Promise<InstructorRunContext> {
 
 export async function setRunChecklistItem(stepId: string, itemId: string, value: boolean): Promise<InstructorRunContext> {
   return mutate((run, session) => setChecklistItem(run, session, stepId, itemId, value));
+}
+
+/**
+ * Releases one EvidenceStage, restricted to the CURRENT active Step only - the
+ * renderer sends just the evidenceStageId, never a stepId, so it can never
+ * release evidence belonging to a different Step.
+ */
+export async function releaseCurrentEvidenceStage(evidenceStageId: string): Promise<InstructorRunContext> {
+  return mutate((run, session) => {
+    const currentStepId = getActiveStepId(run);
+    if (!currentStepId) {
+      throw new SessionEngineError("No active Step to release evidence for");
+    }
+    return releaseEvidenceStage(run, session, currentStepId, evidenceStageId);
+  });
 }
 
 /** Main-internal accessors for resourceController - never exposed to the renderer. */

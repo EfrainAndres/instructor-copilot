@@ -286,6 +286,47 @@ export function setChecklistItem(run: SessionRun, session: Session, stepId: stri
 }
 
 /**
+ * Releases one EvidenceStage for a given Step's run: locked -> released, one-way
+ * (there is no re-lock in the MVP). Idempotent - releasing an already-released
+ * stage is harmless. Allowed anytime before completion, including while paused,
+ * and does not require the Step to be currently active (main enforces the
+ * current-Step-only UX restriction; this primitive stays reusable). Touches only
+ * that one StepRun.evidenceState entry - timing/status/checklist/notes and every
+ * other StepRun are left untouched.
+ */
+export function releaseEvidenceStage(
+  run: SessionRun,
+  session: Session,
+  stepId: string,
+  evidenceStageId: string
+): SessionRun {
+  assertNotCompleted(run);
+
+  const step = session.steps.find((candidate) => candidate.id === stepId);
+  if (!step) {
+    throw new SessionEngineError(`Step "${stepId}" does not exist in this session`);
+  }
+  if (!(step.evidenceStages ?? []).some((stage) => stage.id === evidenceStageId)) {
+    throw new SessionEngineError(`Evidence stage "${evidenceStageId}" does not exist on step "${stepId}"`);
+  }
+
+  const stepRun = requireStepRun(run, stepId);
+  if (!(evidenceStageId in stepRun.evidenceState)) {
+    throw new SessionEngineError(
+      `Evidence stage "${evidenceStageId}" is not tracked in this run's Step "${stepId}"`
+    );
+  }
+
+  const stepRuns = run.stepRuns.map((candidate) =>
+    candidate.stepId === stepId
+      ? { ...candidate, evidenceState: { ...candidate.evidenceState, [evidenceStageId]: "released" as const } }
+      : candidate
+  );
+
+  return finalizeAndValidate({ ...run, stepRuns });
+}
+
+/**
  * Next-Step lookup for Phase 4B: prefers the authored Step's explicit `nextStepId`,
  * falling back to the following Step in authored `Session.steps` order. Returns
  * undefined when there is no next Step (Phase 4B can then offer/perform Complete).

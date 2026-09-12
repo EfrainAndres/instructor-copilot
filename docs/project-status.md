@@ -2,29 +2,25 @@
 
 **Project:** Instructor Copilot
 
-**Current phase:** Phase 5 — Resources / Launcher / Command Runner
+**Current phase:** Phase 6 — Evidence Staging
 
-**Status:** READY FOR REVIEW
+**Status:** PHASE 6A READY FOR REVIEW
 
 **Completed:**
-- Phase 5A secure resource launcher, content-root registry, and path containment (see prior entries)
-- Structured command runner: `command.runCurrentStep(commandId)` — renderer sends only `commandId`; main resolves the trusted `CommandAction` via `resolveCurrentStepCommand` (current active Step only, id must match exactly)
-- cwd resolution bound to `SessionRun.trainingId` via the Phase 5A trainingId-keyed registry, confined to the configured content root via `resolveWithinRoot` (`buildCommandExecutionPlan`)
-- Structured `child_process.spawn(executable, args, { cwd, shell: false, windowsHide: true })` — no shell string, no caller-provided spawn options, no interactive terminal/PTY
-- Sensitive commands (`command.sensitive === true`) require a native `dialog.showMessageBox` confirmation (label/executable/args) before spawn; Cancel returns a normal `{canceled: true}`, never an error
-- One command execution in flight at a time, enforced in main (`commandController.ts`), independent of renderer button state
-- Live `stdout`/`stderr` streamed to the initiating renderer only via narrow one-way events (`command.onOutput`/`command.onCompleted`, each returning an unsubscribe function) — no raw `ipcRenderer` exposed
-- Exit code / spawn-failure completion shown in Instructor Mode; a nonzero exit code is a normal completion, never an IPC error
-- Instructor Mode: real Command block (label, executable/args preview, Sensitive badge, Run Command button) plus a live Command Output panel (capped at ~500 KB per execution with front-truncation) that persists in component state across Step navigation until a new command starts
-- Command execution never mutates `SessionRun` (no pause/resume/status/checklist/timing side effects, no output persisted) and never auto-runs
-- **Lifecycle hardening:** a `command.onStarted` event now establishes execution identity (executionId/label) before any stdout/stderr/completion, sent by main before spawning, so a very fast command can no longer have early output discarded while the `runCurrentStep()` invoke response is still in flight; a pure `reduceCommandExecution` reducer makes both the started-event and the invoke-response idempotent initializers of the same state. Synchronous `spawn()` throws (invalid arguments) now complete cleanly through the same one-shot `onCompleted` path, releasing the in-flight guard exactly as an async spawn failure would.
+- Phase 5 secure resource launcher, content roots, and structured command runner (see prior entries)
+- Pure evidence-release engine operation (`releaseEvidenceStage`): one-way `locked -> released` per `StepRun.evidenceState` entry, idempotent on an already-released stage, rejects a completed run or an unknown/wrong-Step EvidenceStage id, and touches only that one evidence entry — timing/status/checklist/notes and every other StepRun are untouched
+- Current-Step-only main capability `run.releaseEvidenceStage(evidenceStageId)`: renderer sends only the stage id (never a `stepId`, `StepRun`, or desired state); main resolves the current active Step and persists the updated `SessionRun` before committing it in memory, reusing the existing persist-then-commit mutation pattern
+- Instructor Mode: current-Step EvidenceStage panel showing order/label/LOCKED-or-RELEASED status with a Release button per locked stage; a pure `deriveEvidenceStageDisplay` helper is the single boundary that strips `detail` from any stage not yet released, so a locked stage's authored detail is structurally never rendered
+- Release works in any order, survives Next/Previous revisit and Pause/Resume (state lives on `StepRun`, not the authored Step), and never auto-releases (no release tied to Step entry, navigation, command execution, resource opening, checklist completion, or timers)
 
-**Current architecture:** `src/main/{commandController,commandProcess}.ts` (Electron orchestration vs. low-level spawn kept separate); pure `resolveCurrentStepCommand` (session-engine `run/engine.ts`) and `buildCommandExecutionPlan` (session-engine `resources/`) extracted so the security-relevant lookup/path logic is testable without mocking Electron.
+**Current architecture:** `releaseEvidenceStage` lives in `session-engine/run/engine.ts` alongside the other pure per-Step run operations; `deriveEvidenceStageDisplay` lives in `renderer/src/lib/`, mirroring the existing display-helper pattern (`instructorModeState.ts`, `commandExecutionState.ts`).
 
 **Validation:**
 - `npm run typecheck` passes
-- `npm test` — 133/133 passing (126 pre-existing + 7 new: a synchronous `spawn()` throw completing cleanly exactly once, and the `reduceCommandExecution` reducer proving early output/completion is never discarded regardless of which source — the started event or the invoke response — initializes state first)
+- `npm test` — 148/148 passing (133 pre-existing + 15 new: locked initialization, single-stage release with others untouched, out-of-order release, idempotent re-release, unknown/wrong-Step id rejection, paused release without timing/pause-state change, rejection after completion, revisit persistence, save/load round-trip, and the renderer display helper's locked-detail suppression/ordering/no-mutation guarantees)
 - `npm run build` passes
-- Manual validation: launched the built app and confirmed via CDP no `require`/`process`/`ipcRenderer`/`child_process` in the renderer, and the `command.*` capability shape (`runCurrentStep`/`onOutput`/`onCompleted`) matches exactly what was implemented, with a clean "No session run is active" error when invoked with nothing open. The native OS folder picker still can't be driven headlessly, so a full live click-through (Start Session → Run Command → confirm sensitive dialog) was **not** exercised in this session; instead the complete pipeline — current-Step lookup, trainingId-bound content-root resolution, `../` cwd-escape rejection, structured spawn, live stdout/stderr, nonzero exit code, and nonexistent-executable failure — was proven end to end by exercising the exact functions `commandController` calls, against a temporary content root (deleted after, nothing committed). The native sensitive-command confirmation dialog itself was not invoked outside Electron.
+- Manual validation: launched the built app and confirmed via CDP no `require`/`process`/`ipcRenderer` in the renderer, and `run.releaseEvidenceStage` is present in the `run.*` capability shape with a clean "No session run is active" error when invoked with nothing open. The native OS folder picker still can't be driven headlessly, so a full live click-through (Start Session → release stages out of order → Next/Previous → Pause → release while paused → Resume) was **not** exercised in this session; instead the identical sequence was proven end to end by exercising the exact engine/persistence calls `runController` uses, against a temporary app-data root (deleted after, nothing committed) — confirmed out-of-order release, revisit persistence, paused release with pause/timing state unchanged, and a persisted run JSON with all three evidence entries correctly released.
 
-**Next proposed phase:** Phase 6 — Evidence Staging
+**Phase 6 is NOT closed.** The roadmap's Phase 6 stop condition explicitly requires evidence state to survive an app restart mid-run; that (active-run recovery / restart survival) is Phase 6B, not yet implemented.
+
+**Next proposed work:** Phase 6B — Active Run Recovery / Restart Survival

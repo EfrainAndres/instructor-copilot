@@ -16,6 +16,7 @@ import {
   type IpcResult,
   type OpenCurrentStepResourceInput,
   type OpenOrCreateTrainingResult,
+  type ReleaseEvidenceStageInput,
   type RunCurrentStepCommandInput,
   type SaveTrainingMetadataInput,
   type Session,
@@ -57,6 +58,8 @@ const instructorCopilotApi = {
     resume: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runResume),
     setChecklistItem: (input: SetChecklistItemInput): Promise<IpcResult<InstructorRunContext>> =>
       ipcRenderer.invoke(IPC_CHANNELS.runSetChecklistItem, input),
+    releaseEvidenceStage: (input: ReleaseEvidenceStageInput): Promise<IpcResult<InstructorRunContext>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.runReleaseEvidenceStage, input),
     complete: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runComplete)
   },
   resource: {

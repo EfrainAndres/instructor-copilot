@@ -3,6 +3,7 @@ import type { InstructorRunContext, IpcResult } from "../../../shared/ipc";
 import { deriveInstructorModeState } from "../lib/instructorModeState";
 import { formatMinutesAsClock, formatScheduleDelta } from "../lib/timeFormat";
 import { reduceCommandExecution, type CommandExecutionState } from "../lib/commandExecutionState";
+import { deriveEvidenceStageDisplay } from "../lib/evidenceStageDisplay";
 
 interface InstructorModeScreenProps {
   context: InstructorRunContext;
@@ -87,6 +88,10 @@ export function InstructorModeScreen({
     void handleAction(() =>
       window.instructorCopilot.run.setChecklistItem({ stepId: derived.currentStepId!, itemId, value })
     );
+  }
+
+  function handleReleaseEvidence(evidenceStageId: string): void {
+    void handleAction(() => window.instructorCopilot.run.releaseEvidenceStage({ evidenceStageId }));
   }
 
   /** Launch actions never mutate SessionRun state - only the error banner reacts. */
@@ -320,7 +325,27 @@ export function InstructorModeScreen({
           )}
 
           {derived.currentStep.evidenceStages && derived.currentStep.evidenceStages.length > 0 && (
-            <p className="im-muted">{derived.currentStep.evidenceStages.length} evidence stages configured</p>
+            <div className="im-field-block im-evidence">
+              <h2>Evidence</h2>
+              <ul className="im-evidence-list">
+                {deriveEvidenceStageDisplay(derived.currentStep, derived.currentStepRun).map((stage) => (
+                  <li key={stage.id} className={stage.released ? "im-evidence-item released" : "im-evidence-item locked"}>
+                    <div className="im-evidence-header">
+                      <span className="im-evidence-order">{stage.order}.</span>
+                      <span className="im-evidence-label">{stage.label}</span>
+                      <span className="im-evidence-status">{stage.released ? "RELEASED" : "LOCKED"}</span>
+                    </div>
+                    {stage.released ? (
+                      stage.detail && <p className="im-evidence-detail">{stage.detail}</p>
+                    ) : (
+                      <button type="button" onClick={() => handleReleaseEvidence(stage.id)} disabled={busy}>
+                        Release
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </section>
       ) : (
