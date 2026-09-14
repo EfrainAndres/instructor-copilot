@@ -51,6 +51,10 @@ export function SessionEditorScreen({ session, onBundleUpdated, onBack }: Sessio
     mutate((draft) => ({ ...draft, locale: value === "" ? undefined : (value as Session["locale"]) }));
   }
 
+  function handleFacilitationBufferChange(value: string): void {
+    mutate((draft) => ({ ...draft, facilitationBufferMinutes: value === "" ? undefined : Number(value) }));
+  }
+
   function handleStepChange(updatedStep: Step): void {
     mutate((draft) => ({
       ...draft,
@@ -167,6 +171,16 @@ export function SessionEditorScreen({ session, onBundleUpdated, onBack }: Sessio
             <option value="en">en</option>
             <option value="es">es</option>
           </select>
+        </div>
+        <div className="field">
+          <label>Facilitation buffer (minutes, optional - e.g. 5 for a final closing margin)</label>
+          <input
+            type="number"
+            min={0}
+            step="any"
+            value={working.facilitationBufferMinutes ?? ""}
+            onChange={(event) => handleFacilitationBufferChange(event.target.value)}
+          />
         </div>
         <PresentationEditor
           presentation={working.presentation}

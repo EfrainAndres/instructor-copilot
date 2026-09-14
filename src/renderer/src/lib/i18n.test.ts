@@ -35,7 +35,15 @@ const LIVE_INSTRUCTOR_MODE_KEYS: (keyof Dictionary)[] = [
   "skip",
   "pause",
   "resume",
-  "completeSession"
+  "completeSession",
+  "sessionActions",
+  "restartSession",
+  "discardRun",
+  "restartConfirm",
+  "discardConfirm",
+  "inBuffer",
+  "remaining",
+  "facilitationBuffer"
 ];
 
 describe("getDictionary", () => {
@@ -72,6 +80,12 @@ describe("getDictionary", () => {
     for (const key of LIVE_INSTRUCTOR_MODE_KEYS) {
       expect(es[key]).not.toBe(en[key]);
     }
+  });
+
+  it("never uses the same Spanish word for dismissing the recovery banner and for the destructive Discard Run action", () => {
+    const es = getDictionary("es");
+    expect(es.dismiss).not.toBe(es.discardRun);
+    expect(es.dismiss.toLowerCase()).not.toContain("descartar");
   });
 
   it("provides a Step-type label for every StepType in both locales", () => {

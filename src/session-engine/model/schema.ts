@@ -133,6 +133,12 @@ export const SessionSchema = z.object({
   plannedDurationMinutes: PlannedDurationMinutesSchema,
   presentation: PresentationResourceSchema.optional(),
   locale: SessionLocaleSchema.optional(),
+  // Explicit final facilitation buffer in minutes (Phase 9B-B), e.g. the 5-minute
+  // margin after Session 1's 85-minute instructional plan - never authored as a
+  // fake instructional Step. Optional/additive; absent means 0 (no buffer) for
+  // backward compatibility. When present, validateSessionSemantics requires
+  // sum(Step.plannedDurationMinutes) + facilitationBufferMinutes == plannedDurationMinutes.
+  facilitationBufferMinutes: z.number().finite().nonnegative().optional(),
   steps: z.array(StepSchema)
 });
 

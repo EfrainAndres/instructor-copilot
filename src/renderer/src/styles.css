@@ -502,6 +502,7 @@ button:disabled {
 .im-status-row {
   display: flex;
   gap: 2rem;
+  flex-wrap: wrap;
 }
 
 .im-status-block {
@@ -532,6 +533,56 @@ button:disabled {
 
 .im-behind {
   color: crimson;
+}
+
+.im-in-buffer {
+  color: goldenrod;
+}
+
+/* Restart/Discard live behind their own small disclosure, deliberately separate
+   from the status row and far from the footer's Next/Skip/Pause controls, so a
+   stray click can never trigger a destructive action (Phase 9B-B). */
+.im-session-actions {
+  margin-top: 0.75rem;
+  position: relative;
+}
+
+.im-session-actions-toggle {
+  font-size: 0.75rem;
+  color: gray;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.im-session-actions-menu {
+  position: absolute;
+  z-index: 2;
+  top: 1.4rem;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.5rem;
+  background: canvas;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.4rem;
+  box-shadow: 0 0.2rem 0.6rem color-mix(in srgb, black 15%, transparent);
+}
+
+.im-session-actions-menu button {
+  white-space: nowrap;
+  text-align: left;
+}
+
+.im-buffer-note {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: goldenrod;
+  border: 1px dashed goldenrod;
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.6rem;
 }
 
 .im-step-content h1 {

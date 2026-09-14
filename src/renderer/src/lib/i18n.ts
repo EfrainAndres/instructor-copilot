@@ -50,6 +50,14 @@ export interface Dictionary {
   completeSessionConfirm: string;
   recoveredBanner: string;
   dismiss: string;
+  sessionActions: string;
+  restartSession: string;
+  discardRun: string;
+  restartConfirm: string;
+  discardConfirm: string;
+  inBuffer: string;
+  remaining: string;
+  facilitationBuffer: string;
   paused: string;
   sessionComplete: string;
   totalActiveElapsed: string;
@@ -109,6 +117,14 @@ const en: Dictionary = {
   completeSessionConfirm: "Complete this session?",
   recoveredBanner: "Session recovered after restart. Review the current Step and press Resume when ready.",
   dismiss: "Dismiss",
+  sessionActions: "Session actions",
+  restartSession: "Restart Session",
+  discardRun: "Discard Run",
+  restartConfirm: "Restart this session from Step 1?\nThe current attempt will be marked as abandoned.",
+  discardConfirm: "Discard this attempt?\nYou will return to Training and this attempt will not count as a completed session.",
+  inBuffer: "BUFFER",
+  remaining: "remaining",
+  facilitationBuffer: "FACILITATION BUFFER",
   paused: "PAUSED",
   sessionComplete: "Session complete",
   totalActiveElapsed: "Total active elapsed",
@@ -176,7 +192,17 @@ const es: Dictionary = {
   completeSession: "Finalizar sesión",
   completeSessionConfirm: "¿Finalizar esta sesión?",
   recoveredBanner: "Sesión recuperada tras reinicio. Revise el Paso actual y presione Reanudar cuando esté listo.",
-  dismiss: "Descartar",
+  // "Ocultar" (not "Descartar") deliberately - "Descartar" is reserved for the
+  // destructive Discard Run action below, so the two must never share a word.
+  dismiss: "Ocultar",
+  sessionActions: "Acciones de sesión",
+  restartSession: "Reiniciar sesión",
+  discardRun: "Descartar intento",
+  restartConfirm: "¿Reiniciar esta sesión desde el Paso 1?\nEl intento actual quedará marcado como abandonado.",
+  discardConfirm: "¿Descartar este intento?\nVolverá a la capacitación y este intento no contará como una sesión completada.",
+  inBuffer: "MARGEN",
+  remaining: "restantes",
+  facilitationBuffer: "MARGEN DE CIERRE",
   paused: "PAUSADO",
   sessionComplete: "Sesión finalizada",
   totalActiveElapsed: "Tiempo activo total",

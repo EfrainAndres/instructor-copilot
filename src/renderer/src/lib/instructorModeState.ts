@@ -3,9 +3,11 @@ import { getActiveStepId, isRunPaused, resolveNextStepId, resolvePreviousStepId 
 import type { SessionRun, StepRun } from "../../../session-engine/run/schema";
 import {
   completedRunScheduleDeltaMinutes,
+  deriveLiveScheduleStatus,
   scheduleDeltaMinutes,
   sessionActiveElapsedMinutes,
-  stepActualDurationMinutes
+  stepActualDurationMinutes,
+  type LiveScheduleStatus
 } from "../../../session-engine/run/timing";
 
 export interface InstructorModeDisplayState {
@@ -19,6 +21,10 @@ export interface InstructorModeDisplayState {
   sessionElapsedMinutes: number;
   stepElapsedMinutes: number | undefined;
   scheduleDeltaMinutesValue: number | undefined;
+  /** Buffer-aware live status for the current Step (Phase 9B-B) - undefined once completed, since the live screen no longer renders a STATUS block by then. See deriveLiveScheduleStatus. */
+  liveScheduleStatus: LiveScheduleStatus | undefined;
+  /** The Session's own authored facilitation buffer in minutes - 0 when absent (Phase 9B-B). */
+  facilitationBufferMinutes: number;
   /** Whether a next Step structurally exists, regardless of pause/completion - decides Next-vs-Complete labeling. */
   hasNextTarget: boolean;
   canGoPrevious: boolean;
@@ -27,6 +33,9 @@ export interface InstructorModeDisplayState {
   canPause: boolean;
   canResume: boolean;
   canComplete: boolean;
+  /** Restart Session / Discard Run (Phase 9B-B) - available on any live, non-completed run regardless of pause state. */
+  canRestart: boolean;
+  canDiscard: boolean;
 }
 
 /**
@@ -54,6 +63,9 @@ export function deriveInstructorModeState(session: Session, run: SessionRun, now
       ? scheduleDeltaMinutes(run, currentStepId, referenceNow)
       : undefined;
 
+  const liveScheduleStatus =
+    !completed && currentStepId !== undefined ? deriveLiveScheduleStatus(run, currentStepId, referenceNow) : undefined;
+
   const hasNextTarget = currentStepId !== undefined && resolveNextStepId(session, currentStepId) !== undefined;
 
   const canNavigate = !completed && !paused && currentStepId !== undefined;
@@ -76,12 +88,16 @@ export function deriveInstructorModeState(session: Session, run: SessionRun, now
     sessionElapsedMinutes,
     stepElapsedMinutes,
     scheduleDeltaMinutesValue,
+    liveScheduleStatus,
+    facilitationBufferMinutes: session.facilitationBufferMinutes ?? 0,
     hasNextTarget,
     canGoPrevious,
     canGoNext,
     canSkip,
     canPause,
     canResume,
-    canComplete
+    canComplete,
+    canRestart: !completed,
+    canDiscard: !completed
   };
 }

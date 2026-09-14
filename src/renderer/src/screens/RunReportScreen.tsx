@@ -57,7 +57,11 @@ export function RunReportScreen({ context, onBackToTraining }: RunReportScreenPr
         </div>
         <div className="rr-summary-row">
           <div className="rr-summary-block">
-            <span className="rr-summary-label">PLANNED</span>
+            <span className="rr-summary-label">SESSION PLAN</span>
+            <span className="rr-summary-value">{formatMinutesAsClock(report.plannedMinutes + report.plannedBufferMinutes)}</span>
+          </div>
+          <div className="rr-summary-block">
+            <span className="rr-summary-label">STEP PLANS</span>
             <span className="rr-summary-value">{formatMinutesAsClock(report.plannedMinutes)}</span>
           </div>
           <div className="rr-summary-block">
@@ -74,6 +78,14 @@ export function RunReportScreen({ context, onBackToTraining }: RunReportScreenPr
               {overallDelta.label === "ON TIME" ? "ON TIME" : `${overallDelta.label} ${overallDelta.clock}`}
             </span>
           </div>
+          {report.plannedBufferMinutes > 0 && (
+            <div className="rr-summary-block">
+              <span className="rr-summary-label">FACILITATION BUFFER</span>
+              <span className="rr-summary-value">
+                {formatMinutesAsClock(report.bufferUsedMinutes)} / {formatMinutesAsClock(report.plannedBufferMinutes)} used
+              </span>
+            </div>
+          )}
         </div>
       </section>
 

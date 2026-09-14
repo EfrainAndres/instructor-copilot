@@ -7,6 +7,7 @@ import {
   completeRun,
   createSessionRun,
   getActiveStepId,
+  isRunTerminal,
   loadTrainingBundle,
   pauseRun,
   prepareRunForShutdown,
@@ -19,6 +20,7 @@ import {
   SessionEngineError,
   setChecklistItem,
   skipCurrentStep,
+  terminateRun,
   type Session,
   type SessionRun
 } from "../session-engine";
@@ -111,7 +113,9 @@ async function mutate(
 
 export async function startRun(sessionId: string): Promise<InstructorRunContext> {
   return withMutationGuard(async () => {
-    if (active && !active.run.completedAt) {
+    // A completed OR discarded/restarted (terminal) run must never block a
+    // fresh Start Session - only a genuinely live run does.
+    if (active && !isRunTerminal(active.run)) {
       throw new SessionEngineError("A session run is already active.");
     }
 
@@ -199,6 +203,81 @@ export async function complete(): Promise<InstructorRunContext> {
       await clearActiveRunPointer(getAppDataRoot());
     }
   );
+}
+
+/**
+ * Discard Run (Phase 9B-B): abandons the current active run without creating
+ * another one. Ordering matters - the terminal "discarded" run is persisted
+ * FIRST (so it is authoritative on disk even if the pointer cleanup below
+ * fails), only then is `active` cleared and the pointer removed. Never touches
+ * the Training/Session definitions and never opens a normal Run Report - a
+ * discarded run is not eligible for one (see buildRunReport).
+ */
+export async function discardRun(): Promise<null> {
+  return withMutationGuard(async () => {
+    const current = requireActive();
+    const appDataRoot = getAppDataRoot();
+    const now = new Date().toISOString();
+
+    const terminated = terminateRun(current.run, "discarded", now);
+    await saveSessionRun(appDataRoot, terminated);
+
+    active = null;
+
+    try {
+      await clearActiveRunPointer(appDataRoot);
+    } catch (error) {
+      console.error("Failed to clear active-run pointer after discard:", error);
+    }
+
+    return null;
+  });
+}
+
+/**
+ * Restart Session (Phase 9B-B): abandons the current run (marked "restarted",
+ * never reusing its run id) and immediately starts a fresh run of the SAME
+ * Session at Step 1. Partial-failure ordering is deliberate:
+ *
+ * 1. Persist the old run as terminal ("restarted") FIRST.
+ * 2. Commit that terminal state into `active` immediately - even if step 3/4
+ *    below fails, the abandoned run must never again look live in memory
+ *    (a later mutation attempt against a stale in-memory "live" copy of it
+ *    could otherwise silently resurrect it by overwriting the just-persisted
+ *    terminal file).
+ * 3. Create and persist the NEW run under a fresh id.
+ * 4. Point active-run.json at the NEW run only once it is persisted.
+ * 5. Commit the NEW run as active in memory only after every persistence step
+ *    above has succeeded - so `active` can never reference an unpersisted run,
+ *    and the pointer can never reference one either.
+ *
+ * If step 3/4 fails, the pointer on disk is left exactly as it was (still
+ * naming the now-terminal old run, or nothing) - recovery already treats a
+ * pointer to a terminal run as stale/ignorable, so no orphaned pointer can
+ * ever be offered for recovery.
+ */
+export async function restartRun(): Promise<InstructorRunContext> {
+  return withMutationGuard(async () => {
+    const current = requireActive();
+    const appDataRoot = getAppDataRoot();
+    const now = new Date().toISOString();
+
+    const oldTerminated = terminateRun(current.run, "restarted", now);
+    await saveSessionRun(appDataRoot, oldTerminated);
+    active = { ...current, run: oldTerminated };
+
+    const newRun = createSessionRun({
+      id: `run-${randomUUID()}`,
+      trainingId: current.run.trainingId,
+      session: current.session,
+      startedAt: now
+    });
+    await saveSessionRun(appDataRoot, newRun);
+    await saveActiveRunPointer(appDataRoot, { schemaVersion: ACTIVE_RUN_POINTER_SCHEMA_VERSION, runId: newRun.id });
+
+    active = { run: newRun, session: current.session };
+    return toPublicContext(active);
+  });
 }
 
 export async function setRunChecklistItem(stepId: string, itemId: string, value: boolean): Promise<InstructorRunContext> {
@@ -291,7 +370,8 @@ async function performShutdownPreparation(): Promise<void> {
  * Suspends the active run before the app quits, so it can never be left with an
  * open, unpaused Step interval.
  *
- * - No active run, or the active run is already completed: no-op.
+ * - No active run, or the active run is already terminal (completed OR
+ *   discarded/restarted): no-op.
  * - The active run is already paused: no-op - its persisted state is already
  *   authoritative and correct.
  * - Otherwise: pauses it (opening a pause interval that intentionally spans the

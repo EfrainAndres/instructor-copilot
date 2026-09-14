@@ -80,5 +80,37 @@ describe("deriveInstructorModeState", () => {
     expect(state.canResume).toBe(false);
     expect(state.canComplete).toBe(false);
     expect(state.scheduleDeltaMinutesValue).toBe(5 - 20); // 5 min active elapsed - 20 total planned
+    expect(state.liveScheduleStatus).toBeUndefined();
+    expect(state.canRestart).toBe(false);
+    expect(state.canDiscard).toBe(false);
+  });
+
+  it("enables Restart/Discard on any live run regardless of pause state (Phase 9B-B)", () => {
+    const session = threeStepSession();
+    const live = deriveInstructorModeState(session, newRun(session), T0);
+    expect(live.canRestart).toBe(true);
+    expect(live.canDiscard).toBe(true);
+
+    const paused = deriveInstructorModeState(session, pauseRun(newRun(session), T5), T5);
+    expect(paused.canRestart).toBe(true);
+    expect(paused.canDiscard).toBe(true);
+  });
+
+  it("derives a live buffer-aware schedule status for the current Step while not completed", () => {
+    const session = threeStepSession();
+    const state = deriveInstructorModeState(session, newRun(session), T0);
+    expect(state.liveScheduleStatus).toEqual({ kind: "on_plan", magnitudeMinutes: 5 });
+  });
+
+  it("defaults facilitationBufferMinutes to 0 when the Session has none authored", () => {
+    const session = threeStepSession();
+    const state = deriveInstructorModeState(session, newRun(session), T0);
+    expect(state.facilitationBufferMinutes).toBe(0);
+  });
+
+  it("surfaces an authored facilitationBufferMinutes", () => {
+    const session: Session = { ...threeStepSession(), facilitationBufferMinutes: 5 };
+    const state = deriveInstructorModeState(session, newRun(session), T0);
+    expect(state.facilitationBufferMinutes).toBe(5);
   });
 });

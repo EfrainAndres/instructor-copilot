@@ -3,6 +3,7 @@ import { SessionEngineError } from "../validation/errors";
 import type { InstructorNote, SessionRun } from "./schema";
 import {
   completedRunScheduleDeltaMinutes,
+  plannedBufferMinutes,
   sessionActiveElapsedMinutes,
   stepActualDurationMinutes,
   totalPausedMinutes,
@@ -29,10 +30,16 @@ export interface RunReport {
   sessionTitle: string;
   startedAt: string;
   completedAt: string;
+  /** Sum of Step plans only (excludes any facilitation buffer) - unchanged meaning from Phase 7. */
   plannedMinutes: number;
   actualMinutes: number;
   pausedMinutes: number;
+  /** Against the Session's own planned total (Step plans + buffer, e.g. 90) - see completedRunScheduleDeltaMinutes. */
   deltaMinutes: number;
+  /** The Session's own explicit facilitation buffer (Phase 9B-B), derived from snapshots - 0 for any run with none. */
+  plannedBufferMinutes: number;
+  /** How much of the planned buffer was actually used, capped at plannedBufferMinutes - never negative, never counts ordinary Step overruns as "buffer used" beyond what the buffer could absorb. */
+  bufferUsedMinutes: number;
   steps: RunReportStep[];
   doneCount: number;
   skippedCount: number;
@@ -53,9 +60,14 @@ function normalizeDelta(delta: number): number {
  * intervals - it never reads the current authored Session/Step, so a later
  * edit to that Session can never rewrite a completed run's report. Rejects an
  * incomplete run since "planned vs actual" only makes sense once every Step's
- * interval is closed.
+ * interval is closed, and rejects a discarded/restarted run outright - an
+ * abandoned attempt is never eligible for a normal completed Run Report (see
+ * docs/architecture.md -> Run Lifecycle).
  */
 export function buildRunReport(run: SessionRun): RunReport {
+  if (run.termination) {
+    throw new SessionEngineError(`Cannot build a Run Report for a ${run.termination.kind} run`);
+  }
   if (!run.completedAt) {
     throw new SessionEngineError("Cannot build a Run Report for an incomplete run");
   }
@@ -118,16 +130,23 @@ export function buildRunReport(run: SessionRun): RunReport {
     };
   });
 
+  const stepPlannedSum = totalPlannedDurationMinutes(run);
+  const actualMinutes = sessionActiveElapsedMinutes(run, completedAt);
+  const buffer = plannedBufferMinutes(run);
+  const bufferUsed = normalizeDelta(Math.max(0, Math.min(actualMinutes - stepPlannedSum, buffer)));
+
   return {
     runId: run.id,
     sessionId: run.sessionId,
     sessionTitle: run.sessionTitleSnapshot,
     startedAt: run.startedAt,
     completedAt,
-    plannedMinutes: totalPlannedDurationMinutes(run),
-    actualMinutes: sessionActiveElapsedMinutes(run, completedAt),
+    plannedMinutes: stepPlannedSum,
+    actualMinutes,
     pausedMinutes: totalPausedMinutes(run, completedAt),
     deltaMinutes: normalizeDelta(completedRunScheduleDeltaMinutes(run)),
+    plannedBufferMinutes: buffer,
+    bufferUsedMinutes: bufferUsed,
     steps,
     doneCount,
     skippedCount,

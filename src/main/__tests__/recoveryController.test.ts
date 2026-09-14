@@ -12,6 +12,7 @@ import {
   saveSession,
   saveSessionRun,
   saveTraining,
+  terminateRun,
   upsertTrainingRegistration,
   type AppSettings,
   type Session,
@@ -122,6 +123,30 @@ describe("evaluateActiveRunRecovery", () => {
     // A second call proves the pointer was actually cleared, not merely ignored.
     const secondResult = await evaluateActiveRunRecovery(appDataRoot);
     expect(secondResult).toBeNull();
+  });
+
+  it("clears a stale pointer to a discarded run and returns null (Phase 9B-B)", async () => {
+    await setUpTrainingAndRegistration();
+    const discarded: SessionRun = terminateRun(newRun(session()), "discarded", "2026-09-11T10:05:00.000Z");
+    await saveSessionRun(appDataRoot, discarded);
+    await saveActiveRunPointer(appDataRoot, { schemaVersion: ACTIVE_RUN_POINTER_SCHEMA_VERSION, runId: RUN_ID });
+
+    const result = await evaluateActiveRunRecovery(appDataRoot);
+    expect(result).toBeNull();
+
+    const secondResult = await evaluateActiveRunRecovery(appDataRoot);
+    expect(secondResult).toBeNull();
+  });
+
+  it("clears a stale pointer to a restarted (abandoned) run even while it is still paused (Phase 9B-B)", async () => {
+    await setUpTrainingAndRegistration();
+    const paused = pauseRun(newRun(session()), "2026-09-11T10:05:00.000Z");
+    const restarted: SessionRun = terminateRun(paused, "restarted", "2026-09-11T10:06:00.000Z");
+    await saveSessionRun(appDataRoot, restarted);
+    await saveActiveRunPointer(appDataRoot, { schemaVersion: ACTIVE_RUN_POINTER_SCHEMA_VERSION, runId: RUN_ID });
+
+    const result = await evaluateActiveRunRecovery(appDataRoot);
+    expect(result).toBeNull();
   });
 
   it("rejects an incomplete run that is not paused", async () => {

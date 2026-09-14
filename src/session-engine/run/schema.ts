@@ -39,6 +39,16 @@ export const InstructorNoteSchema = z.object({
   text: z.string().min(1)
 });
 
+// Phase 9B-B: a run's OTHER terminal outcome, distinct from a normal completion
+// (`completedAt`). Optional/additive - every SessionRun file persisted before
+// this field existed simply has it undefined, and remains fully loadable with
+// no migration (see docs/data-model.md -> Run Lifecycle). A run may have
+// `completedAt` OR `termination`, never both (enforced below).
+export const RunTerminationSchema = z.object({
+  kind: z.enum(["discarded", "restarted"]),
+  at: z.string().datetime()
+});
+
 export const SessionRunSchema = z.object({
   id: IdSchema,
   schemaVersion: z.number().int(),
@@ -46,6 +56,7 @@ export const SessionRunSchema = z.object({
   trainingId: IdSchema,
   startedAt: z.string().datetime(),
   completedAt: z.string().datetime().optional(),
+  termination: RunTerminationSchema.optional(),
   pauseIntervals: z.array(TimeIntervalSchema),
   stepRuns: z.array(StepRunSchema),
   notes: z.array(InstructorNoteSchema),
@@ -58,6 +69,8 @@ export type TimeInterval = z.infer<typeof TimeIntervalSchema>;
 export type StepRunStatus = z.infer<typeof StepRunStatusSchema>;
 export type StepRun = z.infer<typeof StepRunSchema>;
 export type InstructorNote = z.infer<typeof InstructorNoteSchema>;
+export type RunTerminationKind = z.infer<typeof RunTerminationSchema>["kind"];
+export type RunTermination = z.infer<typeof RunTerminationSchema>;
 export type SessionRun = z.infer<typeof SessionRunSchema>;
 
 function findDuplicate(values: string[]): string | undefined {
@@ -135,16 +148,39 @@ export function validateSessionRunSemantics(run: SessionRun, file?: string): voi
     throw new SessionEngineError("SessionRun has more than one open Step active interval across all Steps", file);
   }
 
+  if (run.completedAt !== undefined && run.termination !== undefined) {
+    throw new SessionEngineError(
+      "SessionRun cannot have both completedAt and termination - a run is either normally completed or abandoned (discarded/restarted), never both",
+      file
+    );
+  }
+
+  if (run.termination !== undefined && Date.parse(run.termination.at) < Date.parse(run.startedAt)) {
+    throw new SessionEngineError("SessionRun.termination.at is earlier than startedAt", file);
+  }
+
+  // A run that is EITHER normally completed OR abandoned (discarded/restarted)
+  // is terminal: no further interval may ever be open, regardless of which kind
+  // of terminal state it is.
+  const isTerminal = run.completedAt !== undefined || run.termination !== undefined;
+  if (isTerminal) {
+    if (totalOpenStepIntervals > 0) {
+      throw new SessionEngineError("A terminal SessionRun has an open Step active interval", file);
+    }
+    if (isPaused) {
+      throw new SessionEngineError("A terminal SessionRun has an open pause interval", file);
+    }
+  }
+
   if (run.completedAt !== undefined) {
     if (Date.parse(run.completedAt) < Date.parse(run.startedAt)) {
       throw new SessionEngineError("SessionRun.completedAt is earlier than startedAt", file);
     }
-    if (totalOpenStepIntervals > 0) {
-      throw new SessionEngineError("Completed SessionRun has an open Step active interval", file);
-    }
-    if (isPaused) {
-      throw new SessionEngineError("Completed SessionRun has an open pause interval", file);
-    }
+    // Only a NORMALLY completed run must have no active StepRun at all. An
+    // abandoned (discarded/restarted) run may legitimately leave its last
+    // StepRun "active" as an honest historical record of where the instructor
+    // stopped - it is not lied about as "done"/"skipped" (see
+    // docs/architecture.md -> Run Lifecycle).
     if (activeStepRuns.length > 0) {
       throw new SessionEngineError("Completed SessionRun has an active StepRun", file);
     }
@@ -156,6 +192,15 @@ export function validateSessionRunSemantics(run: SessionRun, file?: string): voi
           `Step "${stepRun.stepId}" has an open active interval while the run is paused`,
           file
         );
+      }
+    }
+  } else if (run.termination !== undefined) {
+    // Terminated (discarded/restarted) while not paused: the previously-active
+    // Step may remain "active", but its interval must already be closed -
+    // terminateRun always closes it as part of the same transition.
+    for (const stepRun of activeStepRuns) {
+      if (stepRun.activeIntervals.some(isOpen)) {
+        throw new SessionEngineError(`Step "${stepRun.stepId}" has an open active interval on a terminated run`, file);
       }
     }
   } else if (activeStepRuns.length === 1) {
@@ -196,6 +241,9 @@ export function validateSessionRunSemantics(run: SessionRun, file?: string): voi
     }
     if (run.completedAt !== undefined && Date.parse(note.timestamp) > Date.parse(run.completedAt)) {
       throw new SessionEngineError(`InstructorNote "${note.id}" has a timestamp later than SessionRun.completedAt`, file);
+    }
+    if (run.termination !== undefined && Date.parse(note.timestamp) > Date.parse(run.termination.at)) {
+      throw new SessionEngineError(`InstructorNote "${note.id}" has a timestamp later than the run's termination`, file);
     }
   }
 }

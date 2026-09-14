@@ -1,6 +1,7 @@
 import {
   clearActiveRunPointer,
   isRunPaused,
+  isRunTerminal,
   loadActiveRunPointer,
   loadOrCreateAppSettings,
   loadSessionRun,
@@ -38,9 +39,11 @@ export async function evaluateActiveRunRecovery(appDataRoot: string): Promise<Re
 
   const run = await loadSessionRun(appDataRoot, pointer.runId);
 
-  if (run.completedAt) {
-    // Stale pointer referencing an already-completed run: not an error, just
-    // nothing to recover. Clean it up so future startups skip this check.
+  if (isRunTerminal(run)) {
+    // Stale pointer referencing a run that already ended - normally completed,
+    // or abandoned via Restart/Discard (Phase 9B-B): not an error, just
+    // nothing to recover, and never offered to the instructor as recoverable.
+    // Clean it up so future startups skip this check.
     await clearActiveRunPointer(appDataRoot).catch((error) => {
       console.error("Failed to clear a stale active-run pointer:", error);
     });

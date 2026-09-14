@@ -24,6 +24,8 @@ export const IPC_CHANNELS = {
   runReleaseEvidenceStage: "run:release-evidence-stage",
   runAddNote: "run:add-note",
   runComplete: "run:complete",
+  runRestart: "run:restart",
+  runDiscard: "run:discard",
   trainingGetContentRootStatus: "training:get-content-root-status",
   trainingConfigureContentRoot: "training:configure-content-root",
   trainingClearContentRoot: "training:clear-content-root",

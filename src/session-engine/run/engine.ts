@@ -1,7 +1,14 @@
 import type { CommandAction, Session } from "../model/schema";
 import { SessionEngineError } from "../validation/errors";
 import { isSafeId } from "../validation/ids";
-import { validateSessionRunSemantics, type InstructorNote, type SessionRun, type StepRun, type TimeInterval } from "./schema";
+import {
+  validateSessionRunSemantics,
+  type InstructorNote,
+  type RunTerminationKind,
+  type SessionRun,
+  type StepRun,
+  type TimeInterval
+} from "./schema";
 import { SESSION_RUN_SCHEMA_VERSION } from "./schema";
 
 function assertValidTimestamp(value: string, label: string): void {
@@ -37,6 +44,32 @@ function assertNotCompleted(run: SessionRun): void {
   if (run.completedAt) {
     throw new SessionEngineError("Run is already completed");
   }
+}
+
+function assertNotTerminated(run: SessionRun): void {
+  if (run.termination) {
+    throw new SessionEngineError(`Run has been ${run.termination.kind} and no longer accepts changes`);
+  }
+}
+
+/** Every mutating engine operation's entry guard: a terminal run (completed OR abandoned) accepts no further changes. */
+function assertMutable(run: SessionRun): void {
+  assertNotCompleted(run);
+  assertNotTerminated(run);
+}
+
+export function isRunCompleted(run: SessionRun): boolean {
+  return run.completedAt !== undefined;
+}
+
+/** True for a run ended via Restart/Discard rather than a normal Complete Session. */
+export function isRunAbandoned(run: SessionRun): boolean {
+  return run.termination !== undefined;
+}
+
+/** True once a run can never be mutated again, regardless of which terminal kind. */
+export function isRunTerminal(run: SessionRun): boolean {
+  return isRunCompleted(run) || isRunAbandoned(run);
 }
 
 function getOpenPauseInterval(run: SessionRun): TimeInterval | undefined {
@@ -159,7 +192,7 @@ export function createSessionRun(input: CreateSessionRunInput): SessionRun {
  * A no-op if the target is already the active Step.
  */
 export function activateStep(run: SessionRun, targetStepId: string, now: string): SessionRun {
-  assertNotCompleted(run);
+  assertMutable(run);
   assertNotPaused(run, "navigate");
   assertTimeNotBackwards(run, now);
   requireStepRun(run, targetStepId);
@@ -188,7 +221,7 @@ export function activateStep(run: SessionRun, targetStepId: string, now: string)
  * become active and finish normally.
  */
 export function skipCurrentStep(run: SessionRun, now: string, targetStepId?: string): SessionRun {
-  assertNotCompleted(run);
+  assertMutable(run);
   assertNotPaused(run, "skip");
   assertTimeNotBackwards(run, now);
 
@@ -215,7 +248,7 @@ export function skipCurrentStep(run: SessionRun, now: string, targetStepId?: str
 
 /** Closes the active Step's open interval (keeping it logically active) and opens a session-level pause interval. */
 export function pauseRun(run: SessionRun, now: string): SessionRun {
-  assertNotCompleted(run);
+  assertMutable(run);
   if (isRunPaused(run)) {
     throw new SessionEngineError("Run is already paused");
   }
@@ -232,16 +265,18 @@ export function pauseRun(run: SessionRun, now: string): SessionRun {
 }
 
 /**
- * Clean-shutdown suspension (Phase 6B): if `run` is already completed or already
- * paused, returns it unchanged (a no-op, including reference equality so callers
- * can skip persisting) - the existing persisted state is authoritative. Otherwise
+ * Clean-shutdown suspension (Phase 6B, extended in 9B-B): if `run` is already
+ * terminal (normally completed, or abandoned via Restart/Discard) or already
+ * paused, returns it unchanged (a no-op, including reference equality so
+ * callers can skip persisting) - the existing persisted state is authoritative,
+ * and an abandoned run must never gain a new pause interval on quit. Otherwise
  * pauses it exactly like a manual Pause: this open pause interval intentionally
  * spans however long the app stays closed, so a later resume's active-elapsed
  * math naturally excludes that offline period. No new fields, no special
  * "offline duration" concept - it reuses the existing interval model.
  */
 export function prepareRunForShutdown(run: SessionRun, now: string): SessionRun {
-  if (run.completedAt || isRunPaused(run)) {
+  if (isRunTerminal(run) || isRunPaused(run)) {
     return run;
   }
   return pauseRun(run, now);
@@ -249,7 +284,7 @@ export function prepareRunForShutdown(run: SessionRun, now: string): SessionRun 
 
 /** Closes the open pause interval and opens a fresh interval on the (still) active Step. */
 export function resumeRun(run: SessionRun, now: string): SessionRun {
-  assertNotCompleted(run);
+  assertMutable(run);
   const openPause = getOpenPauseInterval(run);
   if (!openPause) {
     throw new SessionEngineError("Run is not paused");
@@ -268,7 +303,7 @@ export function resumeRun(run: SessionRun, now: string): SessionRun {
 
 /** Closes the active Step and sets completedAt. Rejects an already-completed or paused run. */
 export function completeRun(run: SessionRun, now: string): SessionRun {
-  assertNotCompleted(run);
+  assertMutable(run);
   if (isRunPaused(run)) {
     throw new SessionEngineError("Cannot complete a run while paused; resume it first");
   }
@@ -282,9 +317,40 @@ export function completeRun(run: SessionRun, now: string): SessionRun {
   return finalizeAndValidate({ ...run, stepRuns, completedAt: now });
 }
 
+/**
+ * Abandons a run via Restart Session or Discard Run (Phase 9B-B) - the OTHER
+ * way a run ends, distinct from `completeRun`. Closes whatever interval is
+ * currently open (the active Step's interval if unpaused, the pause interval
+ * if paused) exactly like `pauseRun`/`completeRun` already do, but deliberately
+ * does NOT force the active StepRun to "done"/"skipped": it stays "active" as
+ * an honest historical record of where the instructor stopped, never a
+ * fabricated completed Step. Pure - no filesystem I/O; the caller (main's
+ * runController) persists the result and clears/repoints the active-run
+ * pointer. Idempotent guard: rejects an already-terminal run exactly like
+ * every other mutation.
+ */
+export function terminateRun(run: SessionRun, kind: RunTerminationKind, now: string): SessionRun {
+  assertMutable(run);
+  assertTimeNotBackwards(run, now);
+
+  const openPause = getOpenPauseInterval(run);
+  const pauseIntervals = openPause
+    ? run.pauseIntervals.map((interval) => (interval === openPause ? { ...interval, endedAt: now } : interval))
+    : run.pauseIntervals;
+
+  // closeStepRunIntervalOnly is a no-op if the Step's last interval is already
+  // closed (the paused case), so this is safe to apply unconditionally.
+  const current = getActiveStepRun(run);
+  const stepRuns = current
+    ? run.stepRuns.map((stepRun) => (stepRun.stepId === current.stepId ? closeStepRunIntervalOnly(stepRun, now) : stepRun))
+    : run.stepRuns;
+
+  return finalizeAndValidate({ ...run, stepRuns, pauseIntervals, termination: { kind, at: now } });
+}
+
 /** Sets a single checklist item's completion state for one Step's run. Allowed anytime before completion, including while paused. */
 export function setChecklistItem(run: SessionRun, session: Session, stepId: string, itemId: string, value: boolean): SessionRun {
-  assertNotCompleted(run);
+  assertMutable(run);
 
   const step = session.steps.find((candidate) => candidate.id === stepId);
   if (!step) {
@@ -317,7 +383,7 @@ export function releaseEvidenceStage(
   stepId: string,
   evidenceStageId: string
 ): SessionRun {
-  assertNotCompleted(run);
+  assertMutable(run);
 
   const step = session.steps.find((candidate) => candidate.id === stepId);
   if (!step) {
@@ -359,7 +425,7 @@ export interface AddInstructorNoteInput {
  * other engine operation's "now is passed in" convention.
  */
 export function addInstructorNote(run: SessionRun, session: Session, input: AddInstructorNoteInput): SessionRun {
-  assertNotCompleted(run);
+  assertMutable(run);
   assertValidTimestamp(input.timestamp, "timestamp");
 
   if (!isSafeId(input.noteId)) {

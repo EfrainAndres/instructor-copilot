@@ -65,7 +65,9 @@ const instructorCopilotApi = {
       ipcRenderer.invoke(IPC_CHANNELS.runReleaseEvidenceStage, input),
     addNote: (input: AddInstructorNoteInput): Promise<IpcResult<InstructorRunContext>> =>
       ipcRenderer.invoke(IPC_CHANNELS.runAddNote, input),
-    complete: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runComplete)
+    complete: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runComplete),
+    restart: (): Promise<IpcResult<InstructorRunContext>> => ipcRenderer.invoke(IPC_CHANNELS.runRestart),
+    discard: (): Promise<IpcResult<null>> => ipcRenderer.invoke(IPC_CHANNELS.runDiscard)
   },
   resource: {
     openPresentation: (): Promise<IpcResult<null>> => ipcRenderer.invoke(IPC_CHANNELS.resourceOpenPresentation),

@@ -34,6 +34,9 @@ export function InstructorModeScreen({
   // glance rule) - reset whenever the active Step changes, never persisted.
   const [notesOpen, setNotesOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  // Restart/Discard live behind a secondary disclosure (Phase 9B-B) - deliberately
+  // not beside Next/Pause/Skip so a stray click can never trigger them.
+  const [sessionActionsOpen, setSessionActionsOpen] = useState(false);
   // Tracks the latest known executionId synchronously (independent of React's render
   // cycle) so listeners registered once on mount can filter events for whichever
   // execution is current, regardless of which source (started event vs. invoke
@@ -102,6 +105,34 @@ export function InstructorModeScreen({
   function handleComplete(): void {
     if (window.confirm(dictionary.completeSessionConfirm)) {
       void handleAction(() => window.instructorCopilot.run.complete());
+    }
+  }
+
+  function handleRestart(): void {
+    setSessionActionsOpen(false);
+    if (window.confirm(dictionary.restartConfirm)) {
+      void handleAction(() => window.instructorCopilot.run.restart());
+    }
+  }
+
+  async function handleDiscard(): Promise<void> {
+    setSessionActionsOpen(false);
+    if (!window.confirm(dictionary.discardConfirm)) {
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await window.instructorCopilot.run.discard();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      // No Run Report for a discarded attempt - go straight back to Training,
+      // exactly like leaving from the completed screen's own back button.
+      onBackToTraining();
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -206,11 +237,29 @@ export function InstructorModeScreen({
     );
   }
 
-  const deltaMinutes = derived.scheduleDeltaMinutesValue;
-  const isBehind = deltaMinutes !== undefined && deltaMinutes > 0;
-  const deltaClock = deltaMinutes !== undefined ? formatMinutesAsClock(Math.abs(deltaMinutes)) : null;
-  const deltaDetail =
-    deltaClock !== null ? `${deltaClock} ${isBehind ? dictionary.minBehind : dictionary.beforeCheckpoint}` : null;
+  // Buffer-aware live status (Phase 9B-B): "in_buffer" only ever appears on the
+  // run's final Step, and only once its content checkpoint has passed but the
+  // Session's own planned total has not yet been exceeded - see
+  // deriveLiveScheduleStatus. Every earlier Step behaves exactly as before.
+  const liveStatus = derived.liveScheduleStatus;
+  const statusLabel = liveStatus
+    ? liveStatus.kind === "behind"
+      ? dictionary.behind
+      : liveStatus.kind === "in_buffer"
+        ? dictionary.inBuffer
+        : dictionary.onPlan
+    : null;
+  const statusDetail = liveStatus
+    ? `${formatMinutesAsClock(liveStatus.magnitudeMinutes)} ${
+        liveStatus.kind === "behind"
+          ? dictionary.minBehind
+          : liveStatus.kind === "in_buffer"
+            ? dictionary.remaining
+            : dictionary.beforeCheckpoint
+      }`
+    : null;
+  const statusClassName =
+    liveStatus?.kind === "behind" ? "im-status-value im-behind" : liveStatus?.kind === "in_buffer" ? "im-status-value im-in-buffer" : "im-status-value im-on-plan";
 
   const step = derived.currentStep;
   const sections = step ? deriveFacilitationSections(step) : null;
@@ -251,17 +300,31 @@ export function InstructorModeScreen({
           </div>
           <div className="im-status-block">
             <span className="im-status-label">{dictionary.status}</span>
-            {deltaDetail ? (
+            {statusLabel && statusDetail ? (
               <>
-                <span className={isBehind ? "im-status-value im-behind" : "im-status-value im-on-plan"}>
-                  {isBehind ? dictionary.behind : dictionary.onPlan}
-                </span>
-                <span className="im-status-subvalue">{deltaDetail}</span>
+                <span className={statusClassName}>{statusLabel}</span>
+                <span className="im-status-subvalue">{statusDetail}</span>
               </>
             ) : (
               <span className="im-status-value">—</span>
             )}
           </div>
+        </div>
+
+        <div className="im-session-actions">
+          <button type="button" className="im-session-actions-toggle" onClick={() => setSessionActionsOpen((value) => !value)}>
+            {dictionary.sessionActions} {sessionActionsOpen ? "▾" : "▸"}
+          </button>
+          {sessionActionsOpen && (
+            <div className="im-session-actions-menu">
+              <button type="button" onClick={handleRestart} disabled={busy || !derived.canRestart}>
+                {dictionary.restartSession}
+              </button>
+              <button type="button" onClick={() => void handleDiscard()} disabled={busy || !derived.canDiscard}>
+                {dictionary.discardRun}
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -533,6 +596,11 @@ export function InstructorModeScreen({
                 </>
               )}
             </div>
+            {nextPreview?.isFinish && derived.facilitationBufferMinutes > 0 && (
+              <div className="im-buffer-note">
+                {dictionary.facilitationBuffer}: {derived.facilitationBufferMinutes} min
+              </div>
+            )}
           </aside>
         </div>
       ) : (

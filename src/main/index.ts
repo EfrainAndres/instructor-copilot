@@ -32,11 +32,13 @@ import {
 import {
   addCurrentStepNote,
   complete,
+  discardRun,
   nextStep,
   pause,
   prepareActiveRunForShutdown,
   previousStep,
   releaseCurrentEvidenceStage,
+  restartRun,
   resume,
   setRunChecklistItem,
   skipStep,
@@ -163,6 +165,8 @@ void app.whenReady().then(() => {
     toResult(() => addCurrentStepNote(input.text))
   );
   ipcMain.handle(IPC_CHANNELS.runComplete, () => toResult(() => complete()));
+  ipcMain.handle(IPC_CHANNELS.runRestart, () => toResult(() => restartRun()));
+  ipcMain.handle(IPC_CHANNELS.runDiscard, () => toResult(() => discardRun()));
 
   ipcMain.handle(IPC_CHANNELS.trainingGetContentRootStatus, () => toResult(() => getContentRootStatus()));
   ipcMain.handle(IPC_CHANNELS.trainingConfigureContentRoot, (event, input: ConfigureContentRootInput) =>

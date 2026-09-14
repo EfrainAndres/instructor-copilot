@@ -29,7 +29,7 @@ describe("examples/backend-testing-mindset portability", () => {
     expect(session.steps).toHaveLength(17);
   });
 
-  it("has exactly Steps slideRef 1..17 in order and Step durations summing to 90", async () => {
+  it("has exactly Steps slideRef 1..17 in order, matching the approved 85-minute instructional schedule plus a 5-minute facilitation buffer (Phase 9B-B)", async () => {
     const bundle = await loadTrainingBundle(EXAMPLE_ROOT);
     const session = bundle.sessions[0]!;
 
@@ -37,8 +37,17 @@ describe("examples/backend-testing-mindset portability", () => {
       Array.from({ length: 17 }, (_, index) => index + 1)
     );
 
+    // The authoritative per-slide schedule from the Phase 9A UX audit / Phase
+    // 9B-B task spec - not merely "sums to 90" (that alone previously masked a
+    // checkpoint misalignment against the approved delivery schedule).
+    const approvedSchedule = [1, 4, 2, 3, 2, 7, 4, 5, 5, 5, 4, 12, 8, 6, 5, 7, 5];
+    expect(session.steps.map((step) => step.plannedDurationMinutes)).toEqual(approvedSchedule);
+
     const totalStepMinutes = session.steps.reduce((sum, step) => sum + step.plannedDurationMinutes, 0);
-    expect(totalStepMinutes).toBe(90);
+    expect(totalStepMinutes).toBe(85);
+    expect(session.facilitationBufferMinutes).toBe(5);
+    expect(totalStepMinutes + (session.facilitationBufferMinutes ?? 0)).toBe(session.plannedDurationMinutes);
+    expect(session.plannedDurationMinutes).toBe(90);
   });
 
   it("uses the single logical content root everywhere", async () => {

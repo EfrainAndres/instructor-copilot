@@ -282,4 +282,63 @@ describe("buildRunReport", () => {
     expect(report.notReachedCount).toBe(1);
     expect(report.doneCount).toBe(2);
   });
+
+  it("reports zero plannedBufferMinutes/bufferUsedMinutes for a legacy Session with no explicit buffer", () => {
+    const s = fourStepSession(); // Step plans sum to 23, matches plannedDurationMinutes: 20? no - unrelated; buffer is derived from the RUN snapshot, not re-validated here
+    let run = newRun(s);
+    run = activateStep(run, "b", T5);
+    run = activateStep(run, "c", T10);
+    run = activateStep(run, "d", T12);
+    run = completeRun(run, T15);
+
+    const report = buildRunReport(run);
+    // fourStepSession's plannedDurationMinutes (20) already equals its own Step-plan sum.
+    expect(report.plannedBufferMinutes).toBe(0);
+    expect(report.bufferUsedMinutes).toBe(0);
+  });
+
+  it("exposes the planned facilitation buffer and how much of it was used", () => {
+    const s: Session = {
+      id: "session-buffer",
+      schemaVersion: 1,
+      trainingId: "training-1",
+      title: "Buffered Session",
+      plannedDurationMinutes: 15,
+      facilitationBufferMinutes: 5,
+      steps: [
+        { id: "a", type: "introduction", title: "Step A", plannedDurationMinutes: 5 },
+        { id: "b", type: "closing", title: "Step B", plannedDurationMinutes: 5 }
+      ]
+    };
+    let run = newRun(s);
+    run = activateStep(run, "b", T5); // Step-plan sum = 10
+    run = completeRun(run, "2026-09-11T10:12:00.000Z"); // 12 minutes active: 2 min into the 5-min buffer
+
+    const report = buildRunReport(run);
+    expect(report.plannedBufferMinutes).toBe(5);
+    expect(report.bufferUsedMinutes).toBeCloseTo(2, 10);
+  });
+
+  it("caps bufferUsedMinutes at the planned buffer even when the run overruns beyond it entirely", () => {
+    const s: Session = {
+      id: "session-buffer-2",
+      schemaVersion: 1,
+      trainingId: "training-1",
+      title: "Buffered Session",
+      plannedDurationMinutes: 15,
+      facilitationBufferMinutes: 5,
+      steps: [
+        { id: "a", type: "introduction", title: "Step A", plannedDurationMinutes: 5 },
+        { id: "b", type: "closing", title: "Step B", plannedDurationMinutes: 5 }
+      ]
+    };
+    let run = newRun(s);
+    run = activateStep(run, "b", T5);
+    run = completeRun(run, "2026-09-11T10:20:00.000Z"); // 20 minutes active - 5 min beyond the full plan
+
+    const report = buildRunReport(run);
+    expect(report.plannedBufferMinutes).toBe(5);
+    expect(report.bufferUsedMinutes).toBe(5); // capped, not 10
+    expect(report.deltaMinutes).toBeCloseTo(5, 10); // the overrun beyond the buffer still shows up here
+  });
 });

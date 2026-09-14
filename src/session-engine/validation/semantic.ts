@@ -44,6 +44,11 @@ function validateStepLocalIds(step: Step, file?: string): void {
   }
 }
 
+// Floating-point minute sums (e.g. 1+4+2+3+2+7+4+5+5+5+4+12+8+6+5+7+5) can leave
+// a residual like 84.99999999999999 - this tolerance absorbs that noise without
+// masking a genuine authoring mismatch (which would be off by whole seconds/minutes).
+const DURATION_SUM_TOLERANCE_MINUTES = 1e-6;
+
 export function validateSessionSemantics(session: Session, file?: string): void {
   const stepIds = session.steps.map((step) => step.id);
   const duplicateStep = findDuplicate(stepIds);
@@ -58,6 +63,21 @@ export function validateSessionSemantics(session: Session, file?: string): void 
     if (step.nextStepId && !stepIdSet.has(step.nextStepId)) {
       throw new SessionEngineError(
         `Step "${step.id}" has nextStepId "${step.nextStepId}" which does not exist in session "${session.id}"`,
+        file
+      );
+    }
+  }
+
+  // Only enforced when a Session explicitly declares a facilitation buffer -
+  // Sessions authored before Phase 9B-B (no such field) keep their existing
+  // behavior exactly: their Step-duration sum is never checked against
+  // plannedDurationMinutes here.
+  if (session.facilitationBufferMinutes !== undefined) {
+    const stepDurationSum = session.steps.reduce((sum, step) => sum + step.plannedDurationMinutes, 0);
+    const expectedTotal = stepDurationSum + session.facilitationBufferMinutes;
+    if (Math.abs(expectedTotal - session.plannedDurationMinutes) > DURATION_SUM_TOLERANCE_MINUTES) {
+      throw new SessionEngineError(
+        `Session "${session.id}" Step durations (${stepDurationSum}) + facilitationBufferMinutes (${session.facilitationBufferMinutes}) must equal plannedDurationMinutes (${session.plannedDurationMinutes})`,
         file
       );
     }
