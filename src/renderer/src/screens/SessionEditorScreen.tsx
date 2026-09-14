@@ -47,6 +47,10 @@ export function SessionEditorScreen({ session, onBundleUpdated, onBack }: Sessio
     mutate((draft) => ({ ...draft, plannedDurationMinutes: value }));
   }
 
+  function handleLocaleChange(value: string): void {
+    mutate((draft) => ({ ...draft, locale: value === "" ? undefined : (value as Session["locale"]) }));
+  }
+
   function handleStepChange(updatedStep: Step): void {
     mutate((draft) => ({
       ...draft,
@@ -155,6 +159,14 @@ export function SessionEditorScreen({ session, onBundleUpdated, onBack }: Sessio
             value={working.plannedDurationMinutes}
             onChange={(event) => handleDurationChange(Number(event.target.value))}
           />
+        </div>
+        <div className="field">
+          <label>Locale (defaults to English when unset)</label>
+          <select value={working.locale ?? ""} onChange={(event) => handleLocaleChange(event.target.value)}>
+            <option value="">(default) en</option>
+            <option value="en">en</option>
+            <option value="es">es</option>
+          </select>
         </div>
         <PresentationEditor
           presentation={working.presentation}

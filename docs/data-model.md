@@ -20,6 +20,7 @@ interface Session {
   title: string;
   plannedDurationMinutes: number;
   presentation?: Resource;      // the PPTX/PDF for this session; kind is necessarily "presentation" (enforced at the schema level)
+  locale?: "en" | "es";          // Instructor Mode UI/content locale (Phase 9B-A); absent means "en" - backward compatible with every Session authored before this field existed
   steps: Step[];                 // ordered
 }
 
@@ -44,6 +45,14 @@ interface Step {
   command?: CommandAction;
   evidenceStages?: EvidenceStage[];
   nextStepId?: Id;                // explicit override; default is array order
+
+  // Facilitation Console fields (Phase 9B-A) - all optional, deterministic, never
+  // AI-generated. See architecture.md -> Adaptive Facilitation Console.
+  sayFrame?: string;               // one concise framing/transition cue, not a script
+  followUpQuestions?: string[];    // authored probes shown after `questions` for discussion-oriented Steps
+  listenFor?: string[];            // concepts/answer patterns the instructor should notice, not participant-visible "correct answers"
+  transition?: string;             // how to close this moment naturally, shown near NEXT
+  fallback?: string;               // what to do when a required resource/demo/external service fails
 }
 
 type ResourceKind = "file" | "folder" | "presentation" | "application" | "url";
@@ -171,6 +180,9 @@ Slugs (`postman-demo`, `session-1`) for Training/Session/Step/Resource/CommandAc
 
 ## Active Run Recovery (Phase 6B)
 `ActiveRunPointer` is written only when a run starts (after the `SessionRun` itself is saved) and cleared only when a run completes; it is the single source of truth for "is there a run to recover," never a directory scan over `runs/`. Recovering it requires the pointed-to `SessionRun` to already be paused — a clean-shutdown `before-quit` handler guarantees this for a normal quit by pausing any incomplete run first — and requires the recovered run to still be structurally compatible with its authored `Session` (same Step count/order/ids/titles/types/durations, same checklist/evidence-stage id sets). An incomplete-but-unpaused pointed run (a crash, not a clean quit) is rejected rather than recovered, since there is no safe way to attribute the offline time.
+
+## Phase 9B-A: Session.locale and Step facilitation fields
+`locale` and the five Step facilitation fields (`sayFrame`, `followUpQuestions`, `listenFor`, `transition`, `fallback`) are purely additive and optional, so they did not require a `SESSION_SCHEMA_VERSION` bump or a migration function: a Session/Step authored before Phase 9B-A simply has these fields `undefined`, which the schema already accepts, and Instructor Mode's derived display model (`deriveFacilitationSections`) treats an absent field exactly like an empty one - it never invents content. `locale` absent means `"en"` everywhere a locale is read (see architecture.md -> Adaptive Facilitation Console).
 
 ## Versioning / Schema Migration
 `Training`, `Session`, `AppSettings`, `SessionRun`, and `ActiveRunPointer` are each persisted as independent files that evolve on separate timelines and each carry their own `schemaVersion` integer — editing a Training doesn't touch its Sessions' version, and neither touches old run files. On load, main checks the version of whichever file it's reading and applies that file type's own migration function chain (`v1→v2`, `v2→v3`, …) before handing the object to the renderer — there is no shared/global schema version. `Step` does not carry its own version; it migrates as part of its owning `Session` file. Run Reports must tolerate a `StepRun` whose `stepId` no longer exists in the current `Session`, or a `SessionRun` whose `Session`/`Training` has since been edited or deleted entirely, by falling back to the snapshot fields (`sessionTitleSnapshot`/`plannedDurationMinutesSnapshot` on `SessionRun`; the Step-level snapshot fields on `StepRun`) — this is the normal case for historical accuracy, not an error path.

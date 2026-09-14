@@ -111,8 +111,19 @@ export const StepSchema = z.object({
   resources: z.array(ResourceSchema).optional(),
   command: CommandActionSchema.optional(),
   evidenceStages: z.array(EvidenceStageSchema).optional(),
-  nextStepId: IdSchema.optional()
+  nextStepId: IdSchema.optional(),
+  // Facilitation Console fields (Phase 9B-A, all optional/deterministic - see
+  // docs/architecture.md -> Adaptive Facilitation Console). Never AI-generated.
+  sayFrame: z.string().optional(),
+  followUpQuestions: z.array(z.string()).optional(),
+  listenFor: z.array(z.string()).optional(),
+  transition: z.string().optional(),
+  fallback: z.string().optional()
 });
+
+// Session-level UI/content locale (Phase 9B-A). Absent means "en" for backward
+// compatibility with every Session authored before this field existed.
+export const SessionLocaleSchema = z.enum(["en", "es"]);
 
 export const SessionSchema = z.object({
   id: IdSchema,
@@ -121,6 +132,7 @@ export const SessionSchema = z.object({
   title: z.string().min(1),
   plannedDurationMinutes: PlannedDurationMinutesSchema,
   presentation: PresentationResourceSchema.optional(),
+  locale: SessionLocaleSchema.optional(),
   steps: z.array(StepSchema)
 });
 
@@ -151,6 +163,7 @@ export type EvidenceStage = z.infer<typeof EvidenceStageSchema>;
 export type ChecklistItem = z.infer<typeof ChecklistItemSchema>;
 export type StepType = z.infer<typeof StepTypeSchema>;
 export type Step = z.infer<typeof StepSchema>;
+export type SessionLocale = z.infer<typeof SessionLocaleSchema>;
 export type Session = z.infer<typeof SessionSchema>;
 export type Training = z.infer<typeof TrainingSchema>;
 export type TrainingRegistration = z.infer<typeof TrainingRegistrationSchema>;

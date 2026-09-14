@@ -332,10 +332,144 @@ button:disabled {
 /* Instructor Mode - optimized for glanceable use during a live class, not authoring. */
 
 .instructor-mode-screen {
-  max-width: 44rem;
+  max-width: 64rem;
   margin: 0 auto;
   padding: 1.5rem 1.5rem 6rem;
   position: relative;
+}
+
+/* Two-column layout: operational content + compact NEXT/status side panel. Uses the
+   available desktop width (Phase 9A audit: the old 44rem stacked column left it
+   unused); stacks to one column at narrow widths so nothing requires scrolling. */
+.im-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16rem;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 52rem) {
+  .im-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.im-side-panel {
+  position: sticky;
+  top: 1rem;
+}
+
+.im-next-preview {
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 0.5rem;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.im-next-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: gray;
+}
+
+.im-next-detail {
+  font-weight: 600;
+  margin: 0;
+}
+
+.im-next-type {
+  color: gray;
+  text-transform: capitalize;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.im-step-title {
+  margin-bottom: 0.2rem;
+}
+
+/* Safety strip: doNotReveal content, rendered first and visually dominant whenever present. */
+.im-safety-strip {
+  border: 2px solid crimson;
+  border-radius: 0.4rem;
+  padding: 0.75rem;
+  background: color-mix(in srgb, crimson 8%, transparent);
+  margin-bottom: 1rem;
+}
+
+.im-safety-strip h2 {
+  color: crimson;
+  font-weight: 700;
+}
+
+.im-now {
+  border: 1px solid color-mix(in srgb, seagreen 40%, transparent);
+  border-radius: 0.4rem;
+  padding: 0.9rem;
+  background: color-mix(in srgb, seagreen 6%, transparent);
+}
+
+.im-now-text {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.im-remaining-actions {
+  margin: 0.5rem 0 0;
+}
+
+.im-frame p {
+  font-style: italic;
+  color: gray;
+}
+
+.im-discussion-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.im-discussion-part h2 {
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: gray;
+  margin-bottom: 0.3rem;
+}
+
+.im-fallback {
+  color: gray;
+  font-size: 0.9rem;
+}
+
+.im-transition p {
+  font-weight: 500;
+}
+
+.im-disclosure-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: gray;
+  cursor: pointer;
+}
+
+.im-disclosure-content {
+  margin-top: 0.5rem;
+}
+
+/* Quiet Steps (introduction/closing with little authored content) intentionally
+   render less: no extra treatment needed beyond omitting empty sections, but a
+   slightly reduced status bar keeps them from feeling as heavy as an activity Step. */
+.im-emphasis-quiet .im-status-value {
+  font-size: 1.3rem;
 }
 
 .im-paused-badge {

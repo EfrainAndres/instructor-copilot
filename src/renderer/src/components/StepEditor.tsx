@@ -92,6 +92,32 @@ export function StepEditor({ step, otherSteps, onChange }: StepEditorProps): JSX
       />
 
       <div className="field">
+        <label>Say / Frame (one concise cue, not a script)</label>
+        <textarea value={step.sayFrame ?? ""} onChange={(event) => set("sayFrame", event.target.value || undefined)} />
+      </div>
+
+      <StringListEditor
+        label="Follow-up questions"
+        values={step.followUpQuestions ?? []}
+        onChange={(values) => set("followUpQuestions", values)}
+      />
+      <StringListEditor
+        label="Listen for"
+        values={step.listenFor ?? []}
+        onChange={(values) => set("listenFor", values)}
+      />
+
+      <div className="field">
+        <label>Transition</label>
+        <textarea value={step.transition ?? ""} onChange={(event) => set("transition", event.target.value || undefined)} />
+      </div>
+
+      <div className="field">
+        <label>Fallback</label>
+        <textarea value={step.fallback ?? ""} onChange={(event) => set("fallback", event.target.value || undefined)} />
+      </div>
+
+      <div className="field">
         <label>Next step</label>
         <select
           value={step.nextStepId ?? ""}
