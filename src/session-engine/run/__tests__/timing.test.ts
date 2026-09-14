@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Session } from "../../model/schema";
-import { activateStep, completeRun, createSessionRun } from "../engine";
-import { completedRunScheduleDeltaMinutes, deriveLiveScheduleStatus, plannedBufferMinutes } from "../timing";
+import { activateStep, completeRun, createSessionRun, pauseRun, terminateRun } from "../engine";
+import {
+  completedRunScheduleDeltaMinutes,
+  deriveLiveScheduleStatus,
+  plannedBufferMinutes,
+  sessionActiveElapsedMinutes,
+  sessionWallElapsedMinutes
+} from "../timing";
 import type { SessionRun } from "../schema";
 
 const T0 = "2026-09-11T10:00:00.000Z";
@@ -121,5 +127,56 @@ describe("completedRunScheduleDeltaMinutes - measured against the Session's own 
     run = activateStep(run, "b", isoAfterMinutes(5));
     run = completeRun(run, isoAfterMinutes(10));
     expect(completedRunScheduleDeltaMinutes(run)).toBeCloseTo(0, 10);
+  });
+});
+
+describe("elapsed time freezes for terminal runs (Phase 9B-B correctness fix)", () => {
+  it("freezes sessionWallElapsedMinutes for a discarded run at termination.at", () => {
+    const run = terminateRun(newRun(legacySession()), "discarded", isoAfterMinutes(4));
+    expect(sessionWallElapsedMinutes(run, isoAfterMinutes(4))).toBeCloseTo(4, 10);
+  });
+
+  it("freezes sessionActiveElapsedMinutes for a discarded run at termination.at", () => {
+    const run = terminateRun(newRun(legacySession()), "discarded", isoAfterMinutes(4));
+    expect(sessionActiveElapsedMinutes(run, isoAfterMinutes(4))).toBeCloseTo(4, 10);
+  });
+
+  it("freezes sessionActiveElapsedMinutes for a restarted (abandoned) run at termination.at", () => {
+    const run = terminateRun(newRun(legacySession()), "restarted", isoAfterMinutes(6));
+    expect(sessionActiveElapsedMinutes(run, isoAfterMinutes(6))).toBeCloseTo(6, 10);
+  });
+
+  it("does not grow when a later `now` is supplied - both wall and active elapsed stay pinned", () => {
+    const run = terminateRun(newRun(legacySession()), "discarded", isoAfterMinutes(4));
+    const atTermination = sessionActiveElapsedMinutes(run, isoAfterMinutes(4));
+    const wallAtTermination = sessionWallElapsedMinutes(run, isoAfterMinutes(4));
+
+    // A "now" far in the future (e.g. the app re-rendering hours/days later)
+    // must never change either result once the run is terminal.
+    const muchLater = isoAfterMinutes(4 + 60 * 24 * 30);
+    expect(sessionActiveElapsedMinutes(run, muchLater)).toBe(atTermination);
+    expect(sessionWallElapsedMinutes(run, muchLater)).toBe(wallAtTermination);
+  });
+
+  it("also freezes correctly when the run was paused before being discarded", () => {
+    let run = newRun(legacySession());
+    run = pauseRun(run, isoAfterMinutes(2)); // 2 min active before pausing
+    run = terminateRun(run, "discarded", isoAfterMinutes(9)); // 7 min paused, no more active time
+    const atTermination = sessionActiveElapsedMinutes(run, isoAfterMinutes(9));
+    expect(atTermination).toBeCloseTo(2, 10);
+    expect(sessionActiveElapsedMinutes(run, isoAfterMinutes(9000))).toBe(atTermination);
+  });
+
+  it("leaves completed-run elapsed-time behavior unchanged", () => {
+    const run = completeRun(newRun(legacySession()), isoAfterMinutes(5));
+    const atCompletion = sessionActiveElapsedMinutes(run, isoAfterMinutes(5));
+    expect(atCompletion).toBeCloseTo(5, 10);
+    expect(sessionActiveElapsedMinutes(run, isoAfterMinutes(5000))).toBe(atCompletion);
+  });
+
+  it("leaves live (still-incomplete, non-terminal) run behavior unchanged - it keeps measuring through `now`", () => {
+    const run = newRun(legacySession());
+    expect(sessionActiveElapsedMinutes(run, isoAfterMinutes(3))).toBeCloseTo(3, 10);
+    expect(sessionActiveElapsedMinutes(run, isoAfterMinutes(7))).toBeCloseTo(7, 10);
   });
 });

@@ -14,9 +14,22 @@ export function stepActualDurationMinutes(stepRun: StepRun, now: string): number
   return total;
 }
 
-/** Wall-clock elapsed since the run started, through `completedAt` if the run is done, else `now`. */
+/**
+ * The instant a run stops accumulating wall-clock time: `completedAt` for a
+ * normally completed run, `termination.at` for a discarded/restarted
+ * (abandoned) run - both are permanent endpoints - otherwise `now` for a still-
+ * live run. Centralizing this is what makes an abandoned run's elapsed time
+ * freeze at the moment it was abandoned rather than continuing to grow every
+ * time it's re-rendered against a later `now` (see docs/architecture.md ->
+ * Run Lifecycle).
+ */
+function terminalEndpoint(run: SessionRun, now: string): string {
+  return run.completedAt ?? run.termination?.at ?? now;
+}
+
+/** Wall-clock elapsed since the run started, through its terminal endpoint (completedAt or termination.at) if the run has ended, else `now`. */
 export function sessionWallElapsedMinutes(run: SessionRun, now: string): number {
-  return minutesBetween(run.startedAt, run.completedAt ?? now);
+  return minutesBetween(run.startedAt, terminalEndpoint(run, now));
 }
 
 /** Sum of all pause intervals, plus the open one (if any) measured against `now`. */
